@@ -12,6 +12,9 @@ This is a standalone autodialer prototype for a sales team calling US numbers. I
 - Pauses a campaign after a live answer and shows an after-call lead status box.
 - Updates lead status in the local store.
 - Shows live campaign, queue, active calls, call log, and agent reports in the browser.
+- Adds an admin-style portal with PowerLists, Reports, Call History, Agents, Live, and Setup sections.
+- Lets admins invite agents by name/email and HubSpot owner.
+- Includes a starter Chrome extension under `extension/` for agent setup and future HubSpot page integration.
 - Includes starter adapters for Twilio and Plivo so real calling can be wired next.
 - Supports caller ID number pools through `CALLER_ID_NUMBERS`.
 - Includes setup checks for missing HubSpot/carrier credentials.
@@ -63,6 +66,41 @@ username:password:role:hubspot_owner_id
 ```
 
 Admins can see all owners. Agents only see campaigns/leads for their HubSpot owner ID.
+
+## Agent Invitations And Extension
+
+Admins can invite an agent from the **Agents** page:
+
+1. Sync HubSpot owners.
+2. Open **Agents**.
+3. Enter the agent name and email.
+4. Select the matching HubSpot owner.
+5. Click **Send Invitation**.
+
+If email sending is not configured, Truckx creates an invite link and shows **Copy invite** in the Agents table. If email sending is configured, the app emails the setup link automatically.
+
+Optional email sending uses Resend:
+
+```text
+RESEND_API_KEY=...
+INVITE_FROM_EMAIL=Truckx Auto Dialer <dialer@yourdomain.com>
+```
+
+The starter Chrome extension lives in:
+
+```text
+extension/
+```
+
+For local Chrome testing:
+
+1. Open `chrome://extensions`.
+2. Enable **Developer mode**.
+3. Click **Load unpacked**.
+4. Select the repo's `extension` folder.
+5. Paste the invite setup token in the extension popup.
+
+The extension currently handles invite activation and agent connection. The next extension step is to add a HubSpot contact-page dial button and package it for Chrome Web Store.
 
 Credential instructions are in [docs/GET_CREDENTIALS.md](docs/GET_CREDENTIALS.md).
 

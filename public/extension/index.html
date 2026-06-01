@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Truckx Extension Setup</title>
+    <link rel="stylesheet" href="/extension/setup.css">
+  </head>
+  <body>
+    <main class="setup-card">
+      <h1>Truckx Extension Setup</h1>
+      <p id="statusText">Checking your invitation...</p>
+      <section id="inviteDetails" hidden>
+        <div>
+          <span>Name</span>
+          <strong id="agentName"></strong>
+        </div>
+        <div>
+          <span>Email</span>
+          <strong id="agentEmail"></strong>
+        </div>
+        <div>
+          <span>HubSpot owner</span>
+          <strong id="ownerId"></strong>
+        </div>
+      </section>
+      <button id="copyInviteButton" type="button" hidden>Copy setup token</button>
+      <p class="small">Install the Truckx Chrome extension, paste this setup token into the popup, and activate your account.</p>
+    </main>
+    <script src="/extension/setup.js" type="module"></script>
+  </body>
+</html>

@@ -1,9 +1,12 @@
 let state = null;
 let setup = null;
 let selectedCampaignId = '';
+let activeView = 'powerlists';
 
 const elements = {
   systemLine: document.querySelector('#systemLine'),
+  viewTitle: document.querySelector('#viewTitle'),
+  navButtons: document.querySelectorAll('[data-view]'),
   statCampaigns: document.querySelector('#statCampaigns'),
   statDials: document.querySelector('#statDials'),
   statActive: document.querySelector('#statActive'),
@@ -23,6 +26,12 @@ const elements = {
   eventLog: document.querySelector('#eventLog'),
   setupStatus: document.querySelector('#setupStatus'),
   agentReports: document.querySelector('#agentReports'),
+  reportRows: document.querySelector('#reportRows'),
+  historyRows: document.querySelector('#historyRows'),
+  historySearch: document.querySelector('#historySearch'),
+  agentInviteForm: document.querySelector('#agentInviteForm'),
+  agentOwnerSelect: document.querySelector('#agentOwnerSelect'),
+  agentRows: document.querySelector('#agentRows'),
   dispositionPanel: document.querySelector('#dispositionPanel'),
   dispositionLead: document.querySelector('#dispositionLead'),
   dispositionForm: document.querySelector('#dispositionForm'),
@@ -98,10 +107,54 @@ function formatDuration(seconds) {
   return `${minutes}m`;
 }
 
+function callDuration(call) {
+  if (!call.startedAt || !call.completedAt) return '';
+  const seconds = Math.max(0, Math.round((new Date(call.completedAt).getTime() - new Date(call.startedAt).getTime()) / 1000));
+  return formatDuration(seconds);
+}
+
+function latestInviteForAgent(agent) {
+  return (state.agentInvites || []).find((invite) => invite.agentId === agent.id || invite.email === agent.email);
+}
+
+async function copyText(value) {
+  if (!value) return;
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+
+  const input = document.createElement('input');
+  input.value = value;
+  document.body.appendChild(input);
+  input.select();
+  document.execCommand('copy');
+  input.remove();
+}
+
 function pendingDispositionCall() {
   const campaign = selectedCampaign();
   if (!campaign) return null;
   return state.calls.find((call) => call.campaignId === campaign.id && call.requiresDisposition);
+}
+
+function setView(view) {
+  activeView = view || 'powerlists';
+  document.querySelectorAll('.view-panel').forEach((panel) => {
+    panel.classList.toggle('active', panel.id === `view-${activeView}`);
+  });
+  elements.navButtons.forEach((button) => {
+    button.classList.toggle('active', button.dataset.view === activeView);
+  });
+  const titles = {
+    powerlists: 'PowerLists',
+    reports: 'Agent Reports',
+    history: 'Call History',
+    agents: 'Agents',
+    live: 'Live',
+    setup: 'Setup'
+  };
+  elements.viewTitle.textContent = titles[activeView] || 'PowerLists';
 }
 
 function setNotice(message, type = 'info') {
@@ -124,9 +177,11 @@ function selectedCampaign() {
 
 function renderOwners() {
   const current = elements.ownerSelect.value;
-  elements.ownerSelect.innerHTML = state.owners
+  const ownerOptions = state.owners
     .map((owner) => `<option value="${escapeHtml(owner.id)}">${escapeHtml(owner.name)}</option>`)
     .join('');
+  elements.ownerSelect.innerHTML = ownerOptions;
+  elements.agentOwnerSelect.innerHTML = ownerOptions;
   if (current) elements.ownerSelect.value = current;
 
   const owner = state.owners.find((item) => item.id === elements.ownerSelect.value);
@@ -357,6 +412,97 @@ function renderReports() {
         `)
         .join('')
     : '<div class="empty">No agent activity yet</div>';
+
+  elements.reportRows.innerHTML = reports.length
+    ? reports
+        .map((report) => `
+          <tr>
+            <td>
+              <div class="lead-name">
+                <strong>${escapeHtml(report.name)}</strong>
+                <span>${escapeHtml(report.email || '')}</span>
+              </div>
+            </td>
+            <td>${escapeHtml(report.totalCalls)}</td>
+            <td>${escapeHtml(report.connected)}</td>
+            <td>${escapeHtml(report.voicemail)}</td>
+            <td>${escapeHtml(report.noAnswer)}</td>
+            <td>${escapeHtml(formatDuration(report.dialerSeconds))}</td>
+          </tr>
+        `)
+        .join('')
+    : '<tr><td colspan="6">No agent activity yet.</td></tr>';
+}
+
+function renderHistory() {
+  const search = String(elements.historySearch.value || '').toLowerCase();
+  const rows = state.calls
+    .filter((call) => {
+      const campaign = state.campaigns.find((item) => item.id === call.campaignId);
+      const owner = state.owners.find((item) => item.id === call.ownerId);
+      const haystack = [
+        call.leadName,
+        call.leadPhone,
+        call.status,
+        call.outcome,
+        campaign?.name,
+        owner?.name
+      ].join(' ').toLowerCase();
+      return !search || haystack.includes(search);
+    })
+    .slice(0, 100);
+
+  elements.historyRows.innerHTML = rows.length
+    ? rows
+        .map((call) => {
+          const campaign = state.campaigns.find((item) => item.id === call.campaignId);
+          const owner = state.owners.find((item) => item.id === call.ownerId);
+          return `
+            <tr>
+              <td>${escapeHtml(new Date(call.startedAt).toLocaleString())}</td>
+              <td>${escapeHtml(owner?.name || call.ownerId || '')}</td>
+              <td>${escapeHtml(call.leadName || '')}</td>
+              <td>${escapeHtml(call.leadPhone || '')}</td>
+              <td>${escapeHtml(campaign?.name || '')}</td>
+              <td>${statusPill(call.status)}</td>
+              <td>${statusPill(call.outcome || 'not_disposed')}</td>
+              <td>${escapeHtml(callDuration(call))}</td>
+            </tr>
+          `;
+        })
+        .join('')
+    : '<tr><td colspan="8">No records to display</td></tr>';
+}
+
+function renderAgents() {
+  const agents = state.agents || [];
+  elements.agentRows.innerHTML = agents.length
+    ? agents
+        .map((agent) => {
+          const invite = latestInviteForAgent(agent);
+          const inviteCell = invite?.inviteUrl
+            ? `<button type="button" data-copy-invite="${escapeHtml(invite.inviteUrl)}">Copy invite</button>`
+            : '<span class="muted">No invite</span>';
+          return `
+            <tr>
+              <td>${escapeHtml(agent.name)}</td>
+              <td>${escapeHtml(agent.email)}</td>
+              <td>${escapeHtml(agent.hubspotOwnerId || agent.ownerId || '')}</td>
+              <td>${statusPill(agent.status || 'invited')}</td>
+              <td>${statusPill(agent.extensionStatus || 'not_installed')}</td>
+              <td>${inviteCell}</td>
+            </tr>
+          `;
+        })
+        .join('')
+    : '<tr><td colspan="6">No invited agents yet.</td></tr>';
+
+  document.querySelectorAll('[data-copy-invite]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      await copyText(button.dataset.copyInvite);
+      setNotice('Invite link copied.', 'success');
+    });
+  });
 }
 
 async function loadState() {
@@ -373,6 +519,7 @@ async function loadState() {
 }
 
 function render() {
+  setView(activeView);
   renderOwners();
   renderStats();
   renderCampaigns();
@@ -382,8 +529,16 @@ function render() {
   renderSetup();
   renderDisposition();
   renderReports();
+  renderHistory();
+  renderAgents();
   renderDnc();
 }
+
+elements.navButtons.forEach((button) => {
+  button.addEventListener('click', () => {
+    setView(button.dataset.view);
+  });
+});
 
 elements.ownerSelect.addEventListener('change', () => {
   const owner = state.owners.find((item) => item.id === elements.ownerSelect.value);
@@ -400,6 +555,31 @@ elements.campaignForm.addEventListener('submit', async (event) => {
   selectedCampaignId = campaign.id;
   await loadState();
 });
+
+elements.agentInviteForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const form = new FormData(elements.agentInviteForm);
+
+  try {
+    const result = await api('/api/admin/agents/invite', {
+      method: 'POST',
+      body: JSON.stringify(Object.fromEntries(form))
+    });
+    elements.agentInviteForm.reset();
+    setNotice(
+      result.invite?.emailSent
+        ? `Invitation emailed to ${result.agent.email}.`
+        : `Invitation created for ${result.agent.email}. Copy the invite link from the Agents table.`,
+      result.invite?.emailSent ? 'success' : 'info'
+    );
+    await loadState();
+    setView('agents');
+  } catch (error) {
+    setNotice(`Invite failed: ${error.message}`, 'error');
+  }
+});
+
+elements.historySearch.addEventListener('input', renderHistory);
 
 elements.dispositionForm.addEventListener('submit', async (event) => {
   event.preventDefault();

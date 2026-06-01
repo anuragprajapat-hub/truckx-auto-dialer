@@ -25,6 +25,63 @@ body {
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
+.admin-shell {
+  display: grid;
+  grid-template-columns: 264px minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+.sidebar {
+  background: #ffffff;
+  border-right: 1px solid var(--line);
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-height: 100vh;
+  padding: 22px 10px;
+}
+
+.brand-lockup {
+  display: grid;
+  gap: 2px;
+  padding: 0 24px 28px;
+}
+
+.brand-lockup strong {
+  font-size: 28px;
+  letter-spacing: 0;
+}
+
+.brand-lockup span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.sidebar-nav {
+  align-content: start;
+  display: grid;
+  gap: 4px;
+}
+
+.nav-item {
+  border: 0;
+  border-radius: 8px;
+  color: var(--ink);
+  display: flex;
+  justify-content: flex-start;
+  padding: 12px 24px;
+  text-align: left;
+}
+
+.nav-item.active {
+  background: #e8edf1;
+  color: #008ec3;
+  font-weight: 700;
+}
+
+.main-shell {
+  min-width: 0;
+}
+
 button,
 input,
 select {
@@ -54,9 +111,26 @@ button:disabled {
   align-items: center;
   justify-content: space-between;
   gap: 24px;
-  padding: 22px 28px;
+  padding: 22px 28px 16px;
   border-bottom: 1px solid var(--line);
   background: #ffffff;
+}
+
+.top-tabs {
+  display: flex;
+  gap: 12px;
+}
+
+.tab-button {
+  border: 0;
+  border-radius: 6px;
+  color: #465271;
+  padding: 8px 10px;
+}
+
+.tab-button.active {
+  background: #f2f5fb;
+  color: #008ec3;
 }
 
 h1,
@@ -90,6 +164,7 @@ h3 {
   display: grid;
   grid-template-columns: repeat(6, minmax(92px, 1fr));
   gap: 10px;
+  padding: 16px 28px 0;
 }
 
 .status-strip div {
@@ -119,12 +194,90 @@ h3 {
   min-height: calc(100vh - 90px);
 }
 
+.content-shell {
+  padding: 18px 24px 28px;
+}
+
+.view-panel {
+  display: none;
+}
+
+.view-panel.active {
+  display: grid;
+  gap: 18px;
+}
+
+.page-heading {
+  align-items: flex-start;
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.page-heading h2 {
+  font-size: 19px;
+}
+
+.page-heading p {
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+.toolbar-panel {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.powerlist-form {
+  align-items: end;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(160px, 1fr) minmax(170px, 1.2fr) 110px 92px minmax(160px, 1fr) 110px 110px auto;
+}
+
+.powerlist-form label,
+.report-filters label {
+  color: var(--muted);
+  display: grid;
+  gap: 5px;
+  font-size: 12px;
+}
+
+.admin-grid {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: 300px minmax(0, 1fr);
+}
+
+.agents-layout,
+.setup-grid {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: 360px minmax(0, 1fr);
+}
+
+.live-grid,
+.report-grid {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.report-filters {
+  display: flex;
+  gap: 10px;
+}
+
 .panel {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 8px;
   box-shadow: var(--shadow);
   min-width: 0;
+  padding: 16px;
 }
 
 .setup-panel,
@@ -156,7 +309,6 @@ h3 {
 
 .form-grid label:nth-child(1),
 .form-grid label:nth-child(2),
-.form-grid label:nth-child(6),
 .form-grid button {
   grid-column: 1 / -1;
 }
@@ -330,6 +482,9 @@ tr:last-child td {
 
 .pill.running,
 .pill.connected,
+.pill.active,
+.pill.accepted,
+.pill.connected,
 .pill.allowed,
 .pill.ready {
   background: var(--teal-soft);
@@ -338,6 +493,9 @@ tr:last-child td {
 }
 
 .pill.draft,
+.pill.invited,
+.pill.pending,
+.pill.not_installed,
 .pill.retry,
 .pill.voicemail,
 .pill.no_answer {
@@ -481,7 +639,32 @@ tr:last-child td {
   padding: 8px 0;
 }
 
+.muted {
+  color: var(--muted);
+  font-size: 12px;
+}
+
 @media (max-width: 1180px) {
+  .admin-shell {
+    grid-template-columns: 220px minmax(0, 1fr);
+  }
+
+  .powerlist-form {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .powerlist-form button {
+    grid-column: 1 / -1;
+  }
+
+  .admin-grid,
+  .agents-layout,
+  .setup-grid,
+  .live-grid,
+  .report-grid {
+    grid-template-columns: 1fr;
+  }
+
   .layout {
     grid-template-columns: 300px 1fr;
   }
@@ -493,9 +676,31 @@ tr:last-child td {
 }
 
 @media (max-width: 820px) {
+  .admin-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    min-height: 0;
+  }
+
+  .sidebar-nav,
+  .top-tabs {
+    display: flex;
+    flex-wrap: wrap;
+  }
+
   .topbar {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .page-heading {
+    flex-direction: column;
+  }
+
+  .powerlist-form {
+    grid-template-columns: 1fr;
   }
 
   .status-strip {

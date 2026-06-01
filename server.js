@@ -5,8 +5,23 @@ import { URL } from 'node:url';
 import { config } from './src/config.js';
 import { normalizeUsPhone } from './src/compliance.js';
 import { dialerEngine } from './src/dialerEngine.js';
+import { sendAgentInviteEmail } from './src/email.js';
 import { buildAgentReports } from './src/reports.js';
-import { addDncNumber, addEvent, createCampaign, getStore, removeDncNumber, setCampaignStatus, updateLead } from './src/store.js';
+import {
+  acceptAgentInvite,
+  addDncNumber,
+  addEvent,
+  agentFromApiToken,
+  createAgentInvite,
+  createCampaign,
+  getAgentInvite,
+  getStore,
+  removeDncNumber,
+  setCampaignStatus,
+  touchAgent,
+  updateAgentInviteEmailStatus,
+  updateLead
+} from './src/store.js';
 
 const publicDir = path.resolve(process.cwd(), 'public');
 const mimeTypes = {
@@ -38,6 +53,8 @@ function sendXml(response, xml) {
 function isProtectedPath(pathname) {
   if (!config.appAuth.users.length) return false;
   if (pathname === '/api/health') return false;
+  if (pathname.startsWith('/api/invites/')) return false;
+  if (pathname.startsWith('/extension/')) return false;
   if (pathname.startsWith('/webhooks/')) return false;
   return true;
 }
@@ -51,11 +68,25 @@ function unauthorized(response) {
 }
 
 function authenticatedUser(request) {
+  const header = request.headers.authorization || '';
+  if (header.startsWith('Bearer ')) {
+    const token = header.slice('Bearer '.length).trim();
+    const agent = agentFromApiToken(token);
+    if (!agent) return null;
+    return {
+      username: agent.email,
+      role: 'agent',
+      ownerId: agent.ownerId,
+      hubspotOwnerId: agent.hubspotOwnerId,
+      email: agent.email,
+      agentId: agent.id
+    };
+  }
+
   if (!config.appAuth.users.length) {
     return { username: 'local', role: 'admin', hubspotOwnerId: '' };
   }
 
-  const header = request.headers.authorization || '';
   if (!header.startsWith('Basic ')) return null;
 
   try {
@@ -182,6 +213,8 @@ function visibleState(data, user) {
     leads: data.leads.filter((lead) => ownerIds.has(lead.ownerId)),
     calls: data.calls.filter((call) => ownerIds.has(call.ownerId) || campaignIds.has(call.campaignId)),
     sessions: data.sessions.filter((session) => ownerIds.has(session.ownerId)),
+    agents: data.agents.filter((agent) => agent.id === user?.agentId || ownerIds.has(agent.ownerId)),
+    agentInvites: [],
     events: data.events.filter((event) => !event.details?.campaignId || campaignIds.has(event.details.campaignId))
   };
 }
@@ -193,6 +226,10 @@ function assertCampaignAccess(campaignId, user) {
   if (!campaign || !ownerIdsForUser(data, user).has(campaign.ownerId)) {
     throw new Error('You do not have access to this campaign');
   }
+}
+
+function safeAgents(agents = []) {
+  return agents.map(({ apiToken, ...agent }) => agent);
 }
 
 function bridgeDetails(url) {
@@ -242,7 +279,9 @@ function parseBody(request) {
 }
 
 function serveStatic(request, response, url) {
-  const requestedPath = url.pathname === '/' ? '/index.html' : url.pathname;
+  const requestedPath = url.pathname === '/'
+    ? '/index.html'
+    : (url.pathname.endsWith('/') ? `${url.pathname}index.html` : url.pathname);
   const filePath = path.resolve(publicDir, `.${requestedPath}`);
 
   if (!filePath.startsWith(publicDir)) {
@@ -299,12 +338,53 @@ async function handleApi(request, response, url) {
       owners: data.owners,
       campaigns: data.campaigns,
       leads: data.leads,
+      agents: safeAgents(data.agents || []),
+      agentInvites: request.user?.role === 'admin' ? (data.agentInvites || []).slice(0, 100) : [],
       reports: {
         agents: buildAgentReports(data)
       },
       dncNumbers: data.dncNumbers || [],
       calls: data.calls.slice(0, 100),
       events: data.events.slice(0, 50)
+    });
+    return true;
+  }
+
+  const inviteLookupMatch = url.pathname.match(/^\/api\/invites\/([^/]+)$/);
+  if (request.method === 'GET' && inviteLookupMatch) {
+    const record = getAgentInvite(inviteLookupMatch[1]);
+    if (!record?.invite || !record.agent) {
+      sendJson(response, { error: 'Invite not found' }, 404);
+      return true;
+    }
+    sendJson(response, {
+      invite: {
+        status: record.invite.status,
+        expiresAt: record.invite.expiresAt
+      },
+      agent: {
+        name: record.agent.name,
+        email: record.agent.email,
+        hubspotOwnerId: record.agent.hubspotOwnerId
+      },
+      appName: 'Truckx Auto Dialer'
+    });
+    return true;
+  }
+
+  const inviteAcceptMatch = url.pathname.match(/^\/api\/invites\/([^/]+)\/accept$/);
+  if (request.method === 'POST' && inviteAcceptMatch) {
+    const body = await parseBody(request);
+    const result = acceptAgentInvite(inviteAcceptMatch[1], body);
+    sendJson(response, {
+      token: result.token,
+      agent: {
+        id: result.agent.id,
+        name: result.agent.name,
+        email: result.agent.email,
+        hubspotOwnerId: result.agent.hubspotOwnerId
+      },
+      apiBaseUrl: config.publicBaseUrl
     });
     return true;
   }
@@ -317,6 +397,54 @@ async function handleApi(request, response, url) {
   if (request.method === 'POST' && url.pathname === '/api/hubspot/owners/sync') {
     const result = await dialerEngine.syncHubSpotOwners();
     sendJson(response, result);
+    return true;
+  }
+
+  if (request.method === 'POST' && url.pathname === '/api/admin/agents/invite') {
+    if (request.user?.role !== 'admin') {
+      sendJson(response, { error: 'Admin access required' }, 403);
+      return true;
+    }
+
+    const body = await parseBody(request);
+    const result = createAgentInvite(body, config.publicBaseUrl);
+
+    try {
+      const emailResult = await sendAgentInviteEmail(result);
+      updateAgentInviteEmailStatus(result.invite.id, {
+        emailSent: Boolean(emailResult.sent),
+        emailError: emailResult.reason || ''
+      });
+      result.invite.emailSent = Boolean(emailResult.sent);
+      result.invite.emailError = emailResult.reason || '';
+    } catch (error) {
+      updateAgentInviteEmailStatus(result.invite.id, {
+        emailSent: false,
+        emailError: error.message
+      });
+      result.invite.emailSent = false;
+      result.invite.emailError = error.message;
+    }
+
+    sendJson(response, result, 201);
+    return true;
+  }
+
+  if (request.method === 'GET' && url.pathname === '/api/extension/me') {
+    if (!request.user?.agentId) {
+      sendJson(response, { error: 'Extension token required' }, 401);
+      return true;
+    }
+    const agent = touchAgent(request.user.agentId);
+    sendJson(response, {
+      agent: {
+        id: agent.id,
+        name: agent.name,
+        email: agent.email,
+        hubspotOwnerId: agent.hubspotOwnerId,
+        lastSeenAt: agent.lastSeenAt
+      }
+    });
     return true;
   }
 

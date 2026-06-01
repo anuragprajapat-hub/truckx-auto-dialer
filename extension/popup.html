@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Truckx Auto Dialer</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <main>
+      <header>
+        <strong>Truckx</strong>
+        <span id="connectionState">Not connected</span>
+      </header>
+
+      <section id="setupView">
+        <label>
+          App URL
+          <input id="apiBaseUrl" value="https://truckx-auto-dialer.onrender.com">
+        </label>
+        <label>
+          Setup token
+          <input id="inviteToken" placeholder="Paste invite token">
+        </label>
+        <button id="activateButton" type="button">Activate</button>
+        <p id="setupMessage"></p>
+      </section>
+
+      <section id="agentView" hidden>
+        <div class="agent-card">
+          <span>Agent</span>
+          <strong id="agentName"></strong>
+          <small id="agentEmail"></small>
+        </div>
+        <div class="button-row">
+          <button id="openAppButton" type="button">Open Dialer</button>
+          <button id="disconnectButton" type="button">Disconnect</button>
+        </div>
+      </section>
+    </main>
+    <script src="popup.js" type="module"></script>
+  </body>
+</html>

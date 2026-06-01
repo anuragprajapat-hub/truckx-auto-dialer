@@ -7,198 +7,361 @@
     <link rel="stylesheet" href="/styles.css">
   </head>
   <body>
-    <header class="topbar">
-      <div>
-        <h1>Truckx Auto Dialer</h1>
-        <p id="systemLine">Loading system status...</p>
-      </div>
-      <div class="status-strip">
-        <div>
-          <span id="statCampaigns">0</span>
-          <label>Campaigns</label>
+    <div class="admin-shell">
+      <aside class="sidebar">
+        <div class="brand-lockup">
+          <strong>TRUCKX</strong>
+          <span>Auto Dialer</span>
         </div>
-        <div>
-          <span id="statDials">0</span>
-          <label>Dials</label>
-        </div>
-        <div>
-          <span id="statActive">0</span>
-          <label>Active</label>
-        </div>
-        <div>
-          <span id="statConnected">0</span>
-          <label>Connected</label>
-        </div>
-        <div>
-          <span id="statVm">0</span>
-          <label>VM</label>
-        </div>
-        <div>
-          <span id="statHours">0h</span>
-          <label>Dialer time</label>
-        </div>
-      </div>
-    </header>
-
-    <main class="layout">
-      <section class="panel setup-panel">
-        <div class="panel-title">
-          <h2>Campaign</h2>
-          <div class="button-row">
-            <button id="syncOwnersButton" type="button" title="Sync HubSpot owners">Owners</button>
-            <button id="refreshButton" class="icon-button" type="button" title="Refresh">Refresh</button>
-          </div>
-        </div>
-
-        <form id="campaignForm" class="form-grid">
-          <label>
-            Owner
-            <select id="ownerSelect" name="ownerId" required></select>
-          </label>
-          <label>
-            Name
-            <input id="campaignName" name="name" placeholder="Owner outreach" required>
-          </label>
-          <label>
-            Zone
-            <select id="timeZoneTarget" name="timeZoneTarget">
-              <option value="ALL">All zones</option>
-              <option value="EST">EST</option>
-              <option value="CST">CST</option>
-              <option value="MST">MST</option>
-              <option value="PST">PST</option>
-            </select>
-          </label>
-          <label>
-            Mode
-            <select id="dialMode" name="dialMode">
-              <option value="predictive">Predictive</option>
-            </select>
-          </label>
-          <label>
-            Lines
-            <input id="maxParallelCalls" name="maxParallelCalls" type="number" min="1" max="10" value="2">
-          </label>
-          <label>
-            Agent phone
-            <input id="agentPhone" name="agentPhone" placeholder="+15557654321">
-          </label>
-          <label>
-            Start
-            <input id="callWindowStart" name="callWindowStart" type="time" value="09:00">
-          </label>
-          <label>
-            End
-            <input id="callWindowEnd" name="callWindowEnd" type="time" value="18:00">
-          </label>
-          <button class="primary-button" type="submit">Create</button>
-        </form>
-
-        <div class="campaign-list" id="campaignList"></div>
-      </section>
-
-      <section class="panel work-panel">
-        <div class="panel-title">
-          <div>
-            <h2 id="activeCampaignName">Queue</h2>
-            <p id="activeCampaignMeta">No campaign selected</p>
-          </div>
-          <div class="button-row">
-            <button id="syncHubSpotButton" title="Sync HubSpot leads">Sync</button>
-            <button id="startButton" class="success-button" title="Start selected campaign">Start</button>
-            <button id="stopButton" class="danger-button" title="Stop selected campaign">Stop</button>
-          </div>
-        </div>
-
-        <div id="notice" class="notice" hidden></div>
-
-        <section id="dispositionPanel" class="disposition-panel" hidden>
-          <div>
-            <h3>After-call status</h3>
-            <p id="dispositionLead">No completed call selected</p>
-          </div>
-          <form id="dispositionForm">
-            <select id="dispositionStatus" name="status" required>
-              <option value="">Select lead status</option>
-              <option value="follow_up">Follow up</option>
-              <option value="qualified">Qualified</option>
-              <option value="not_interested">Not interested</option>
-              <option value="bad_timing">Bad timing</option>
-              <option value="do_not_call">Do not call</option>
-              <option value="connected">Connected</option>
-              <option value="new">New</option>
-            </select>
-            <input id="dispositionNote" name="note" placeholder="Note">
-            <button class="primary-button" type="submit">Save</button>
-          </form>
-        </section>
-
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Lead</th>
-                <th>Phone</th>
-                <th>Zone</th>
-                <th>Status</th>
-                <th>Attempts</th>
-                <th>Dial Check</th>
-              </tr>
-            </thead>
-            <tbody id="leadRows"></tbody>
-          </table>
-        </div>
-      </section>
-
-      <aside class="side-stack">
-        <section class="panel">
-          <div class="panel-title">
-            <h2>Setup</h2>
-          </div>
-          <div id="setupStatus" class="setup-list"></div>
-        </section>
-
-        <section class="panel">
-          <div class="panel-title">
-            <h2>Admin Report</h2>
-          </div>
-          <div id="agentReports" class="report-list"></div>
-        </section>
-
-        <section class="panel">
-          <div class="panel-title">
-            <h2>DNC</h2>
-          </div>
-          <form id="dncForm" class="compact-form">
-            <input id="dncPhone" name="phone" placeholder="+15551234567" required>
-            <input id="dncReason" name="reason" placeholder="Reason">
-            <button type="submit">Add</button>
-          </form>
-          <div id="dncList" class="dnc-list"></div>
-        </section>
-
-        <section class="panel">
-          <div class="panel-title">
-            <h2>Live Calls</h2>
-          </div>
-          <div id="activeCalls" class="call-stack"></div>
-        </section>
-
-        <section class="panel">
-          <div class="panel-title">
-            <h2>Call Log</h2>
-          </div>
-          <div id="callLog" class="log-list"></div>
-        </section>
-
-        <section class="panel">
-          <div class="panel-title">
-            <h2>Events</h2>
-          </div>
-          <div id="eventLog" class="event-list"></div>
-        </section>
+        <nav class="sidebar-nav" aria-label="Admin navigation">
+          <button class="nav-item active" data-view="powerlists" type="button">PowerLists</button>
+          <button class="nav-item" data-view="reports" type="button">Agent Reports</button>
+          <button class="nav-item" data-view="history" type="button">Call History</button>
+          <button class="nav-item" data-view="agents" type="button">Agents</button>
+          <button class="nav-item" data-view="live" type="button">Live</button>
+          <button class="nav-item" data-view="setup" type="button">Setup</button>
+        </nav>
       </aside>
-    </main>
+
+      <div class="main-shell">
+        <header class="topbar">
+          <div>
+            <h1 id="viewTitle">PowerLists</h1>
+            <p id="systemLine">Loading system status...</p>
+          </div>
+          <div class="top-tabs">
+            <button class="tab-button active" data-view="reports" type="button">Call Reporting</button>
+            <button class="tab-button" data-view="history" type="button">History</button>
+            <button class="tab-button" data-view="agents" type="button">Manage</button>
+            <button class="tab-button" data-view="setup" type="button">Setup</button>
+          </div>
+        </header>
+
+        <section class="status-strip">
+          <div>
+            <span id="statCampaigns">0</span>
+            <label>PowerLists</label>
+          </div>
+          <div>
+            <span id="statDials">0</span>
+            <label>Dials</label>
+          </div>
+          <div>
+            <span id="statActive">0</span>
+            <label>Active</label>
+          </div>
+          <div>
+            <span id="statConnected">0</span>
+            <label>Connected</label>
+          </div>
+          <div>
+            <span id="statVm">0</span>
+            <label>VM</label>
+          </div>
+          <div>
+            <span id="statHours">0h</span>
+            <label>Dialer time</label>
+          </div>
+        </section>
+
+        <main class="content-shell">
+          <div id="notice" class="notice" hidden></div>
+
+          <section id="view-powerlists" class="view-panel active">
+            <div class="page-heading">
+              <div>
+                <h2>PowerLists</h2>
+                <p>Build timezone-based predictive lists from HubSpot owners and run agent calling sessions.</p>
+              </div>
+              <div class="button-row">
+                <button id="syncOwnersButton" type="button" title="Sync HubSpot owners">Owners</button>
+                <button id="refreshButton" type="button" title="Refresh">Refresh</button>
+              </div>
+            </div>
+
+            <section class="toolbar-panel">
+              <form id="campaignForm" class="powerlist-form">
+                <label>
+                  Owner
+                  <select id="ownerSelect" name="ownerId" required></select>
+                </label>
+                <label>
+                  PowerList
+                  <input id="campaignName" name="name" placeholder="SOORAJ PST" required>
+                </label>
+                <label>
+                  Zone
+                  <select id="timeZoneTarget" name="timeZoneTarget">
+                    <option value="ALL">All zones</option>
+                    <option value="EST">EST</option>
+                    <option value="CST">CST</option>
+                    <option value="MST">MST</option>
+                    <option value="PST">PST</option>
+                  </select>
+                </label>
+                <label>
+                  Lines
+                  <input id="maxParallelCalls" name="maxParallelCalls" type="number" min="1" max="10" value="2">
+                </label>
+                <label>
+                  Agent phone
+                  <input id="agentPhone" name="agentPhone" placeholder="+15557654321">
+                </label>
+                <label>
+                  Start
+                  <input id="callWindowStart" name="callWindowStart" type="time" value="09:00">
+                </label>
+                <label>
+                  End
+                  <input id="callWindowEnd" name="callWindowEnd" type="time" value="18:00">
+                </label>
+                <input name="dialMode" type="hidden" value="predictive">
+                <button class="primary-button" type="submit">New Team PowerList</button>
+              </form>
+            </section>
+
+            <div class="admin-grid">
+              <section class="panel">
+                <div class="panel-title">
+                  <h2>PowerLists</h2>
+                </div>
+                <div class="campaign-list" id="campaignList"></div>
+              </section>
+
+              <section class="panel work-panel">
+                <div class="panel-title">
+                  <div>
+                    <h2 id="activeCampaignName">Queue</h2>
+                    <p id="activeCampaignMeta">No campaign selected</p>
+                  </div>
+                  <div class="button-row">
+                    <button id="syncHubSpotButton" title="Sync HubSpot leads">Sync</button>
+                    <button id="startButton" class="success-button" title="Start selected campaign">Start</button>
+                    <button id="stopButton" class="danger-button" title="Stop selected campaign">Stop</button>
+                  </div>
+                </div>
+
+                <section id="dispositionPanel" class="disposition-panel" hidden>
+                  <div>
+                    <h3>After-call status</h3>
+                    <p id="dispositionLead">No completed call selected</p>
+                  </div>
+                  <form id="dispositionForm">
+                    <select id="dispositionStatus" name="status" required>
+                      <option value="">Select lead status</option>
+                      <option value="follow_up">Follow up</option>
+                      <option value="qualified">Qualified</option>
+                      <option value="not_interested">Not interested</option>
+                      <option value="bad_timing">Bad timing</option>
+                      <option value="do_not_call">Do not call</option>
+                      <option value="connected">Connected</option>
+                      <option value="new">New</option>
+                    </select>
+                    <input id="dispositionNote" name="note" placeholder="Note">
+                    <button class="primary-button" type="submit">Save</button>
+                  </form>
+                </section>
+
+                <div class="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Lead</th>
+                        <th>Phone</th>
+                        <th>Zone</th>
+                        <th>Status</th>
+                        <th>Attempts</th>
+                        <th>Dial Check</th>
+                      </tr>
+                    </thead>
+                    <tbody id="leadRows"></tbody>
+                  </table>
+                </div>
+              </section>
+            </div>
+          </section>
+
+          <section id="view-reports" class="view-panel">
+            <div class="page-heading">
+              <div>
+                <h2>Agent Reports</h2>
+                <p>View connection, voicemail, missed call, and dialer time metrics by agent.</p>
+              </div>
+              <div class="report-filters">
+                <select aria-label="Team">
+                  <option>All Teams</option>
+                </select>
+                <select aria-label="Metric">
+                  <option>All Connections</option>
+                  <option>Answered Calls</option>
+                  <option>Missed Calls</option>
+                  <option>Voicemail</option>
+                  <option>Dialer Time</option>
+                </select>
+              </div>
+            </div>
+            <div id="agentReports" class="report-list report-grid"></div>
+            <div class="panel">
+              <div class="panel-title">
+                <h2>Agent Summary</h2>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Agent</th>
+                      <th>Total Calls</th>
+                      <th>Connected</th>
+                      <th>Voicemail</th>
+                      <th>No Answer</th>
+                      <th>Dialer Time</th>
+                    </tr>
+                  </thead>
+                  <tbody id="reportRows"></tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <section id="view-history" class="view-panel">
+            <div class="page-heading">
+              <div>
+                <h2>Call History</h2>
+                <p>Review outgoing call attempts, outcomes, duration, and source PowerList.</p>
+              </div>
+              <input id="historySearch" placeholder="Search call history">
+            </div>
+            <div class="panel">
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Agent</th>
+                      <th>Lead</th>
+                      <th>Phone</th>
+                      <th>PowerList</th>
+                      <th>Status</th>
+                      <th>Outcome</th>
+                      <th>Duration</th>
+                    </tr>
+                  </thead>
+                  <tbody id="historyRows"></tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <section id="view-agents" class="view-panel">
+            <div class="page-heading">
+              <div>
+                <h2>Agents</h2>
+                <p>Invite agents by name and email. They install the extension and activate through the invite link.</p>
+              </div>
+            </div>
+            <div class="agents-layout">
+              <section class="panel">
+                <div class="panel-title">
+                  <h2>Invite Agent</h2>
+                </div>
+                <form id="agentInviteForm" class="form-grid">
+                  <label>
+                    Name
+                    <input id="agentInviteName" name="name" placeholder="Sooraj Kumar" required>
+                  </label>
+                  <label>
+                    Email
+                    <input id="agentInviteEmail" name="email" placeholder="agent@company.com" type="email" required>
+                  </label>
+                  <label>
+                    HubSpot owner
+                    <select id="agentOwnerSelect" name="ownerId" required></select>
+                  </label>
+                  <button class="primary-button" type="submit">Send Invitation</button>
+                </form>
+              </section>
+              <section class="panel">
+                <div class="panel-title">
+                  <h2>Agent Directory</h2>
+                </div>
+                <div class="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Agent</th>
+                        <th>Email</th>
+                        <th>Owner ID</th>
+                        <th>Status</th>
+                        <th>Extension</th>
+                        <th>Invite</th>
+                      </tr>
+                    </thead>
+                    <tbody id="agentRows"></tbody>
+                  </table>
+                </div>
+              </section>
+            </div>
+          </section>
+
+          <section id="view-live" class="view-panel">
+            <div class="page-heading">
+              <div>
+                <h2>Live Calls</h2>
+                <p>Monitor active calls, recent call log, and live system events.</p>
+              </div>
+            </div>
+            <div class="live-grid">
+              <section class="panel">
+                <div class="panel-title">
+                  <h2>Active Calls</h2>
+                </div>
+                <div id="activeCalls" class="call-stack"></div>
+              </section>
+              <section class="panel">
+                <div class="panel-title">
+                  <h2>Recent Calls</h2>
+                </div>
+                <div id="callLog" class="log-list"></div>
+              </section>
+              <section class="panel">
+                <div class="panel-title">
+                  <h2>Events</h2>
+                </div>
+                <div id="eventLog" class="event-list"></div>
+              </section>
+            </div>
+          </section>
+
+          <section id="view-setup" class="view-panel">
+            <div class="page-heading">
+              <div>
+                <h2>Setup</h2>
+                <p>Review carrier, HubSpot, caller ID, webhook, DNC, and extension readiness.</p>
+              </div>
+            </div>
+            <div class="setup-grid">
+              <section class="panel">
+                <div class="panel-title">
+                  <h2>System Checks</h2>
+                </div>
+                <div id="setupStatus" class="setup-list"></div>
+              </section>
+              <section class="panel">
+                <div class="panel-title">
+                  <h2>DNC</h2>
+                </div>
+                <form id="dncForm" class="compact-form">
+                  <input id="dncPhone" name="phone" placeholder="+15551234567" required>
+                  <input id="dncReason" name="reason" placeholder="Reason">
+                  <button type="submit">Add</button>
+                </form>
+                <div id="dncList" class="dnc-list"></div>
+              </section>
+            </div>
+          </section>
+        </main>
+      </div>
+    </div>
 
     <script src="/app.js" type="module"></script>
   </body>

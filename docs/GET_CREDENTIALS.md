@@ -48,6 +48,17 @@ username:password:role:hubspot_owner_id
 
 Use `admin` for an admin user. Use `agent` plus the HubSpot owner ID for an agent user. You can get the owner ID after clicking **Owners** in Truckx or from HubSpot owner settings/API.
 
+The newer invite flow means agents do not need manually created passwords. Keep an admin login for the portal, then invite agents from **Agents**. Invited agents activate through the Chrome extension and receive an extension token.
+
+Optional email invitation delivery:
+
+```text
+RESEND_API_KEY=...
+INVITE_FROM_EMAIL=Truckx Auto Dialer <dialer@yourdomain.com>
+```
+
+Without these, the admin can copy the invite link from the Agents table and send it manually.
+
 Recommended scopes:
 
 ```text

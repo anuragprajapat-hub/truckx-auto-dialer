@@ -67,6 +67,10 @@ export const config = {
     password: process.env.APP_PASSWORD || '',
     users: configuredUsers.length ? configuredUsers : fallbackUsers
   },
+  email: {
+    resendApiKey: process.env.RESEND_API_KEY || '',
+    from: process.env.INVITE_FROM_EMAIL || 'Truckx Auto Dialer <noreply@truckx.local>'
+  },
   leadSource: process.env.LEAD_SOURCE || 'mock',
   voiceProvider: process.env.VOICE_PROVIDER || 'mock',
   callerIdNumber: callerIdNumbers[0] || '+15551234567',

@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 
 const storePath = path.resolve(process.cwd(), 'data', 'store.json');
 
@@ -107,6 +107,8 @@ function seedStore() {
     campaigns: [],
     calls: [],
     sessions: [],
+    agents: [],
+    agentInvites: [],
     events: [],
     dncNumbers: []
   };
@@ -124,6 +126,8 @@ function read() {
   if (!Array.isArray(data.dncNumbers)) data.dncNumbers = [];
   if (!Array.isArray(data.events)) data.events = [];
   if (!Array.isArray(data.sessions)) data.sessions = [];
+  if (!Array.isArray(data.agents)) data.agents = [];
+  if (!Array.isArray(data.agentInvites)) data.agentInvites = [];
   for (const campaign of data.campaigns || []) {
     if (!campaign.timeZoneTarget) campaign.timeZoneTarget = 'ALL';
     if (typeof campaign.pauseOnLiveAnswer !== 'boolean') campaign.pauseOnLiveAnswer = true;
@@ -218,6 +222,158 @@ export function upsertOwners(owners) {
       }
     }
     return owners.length;
+  });
+}
+
+function inviteToken() {
+  return randomBytes(24).toString('base64url');
+}
+
+function defaultInviteUrl(token, publicBaseUrl) {
+  const baseUrl = String(publicBaseUrl || '').replace(/\/$/, '');
+  return `${baseUrl || 'http://localhost:4242'}/extension/?invite=${encodeURIComponent(token)}`;
+}
+
+export function createAgentInvite(input, publicBaseUrl) {
+  return updateStore((data) => {
+    const email = String(input.email || '').trim().toLowerCase();
+    const name = String(input.name || '').trim();
+    if (!name) throw new Error('Agent name is required');
+    if (!email || !email.includes('@')) throw new Error('Agent email is required');
+
+    const owner = data.owners.find((item) => item.id === input.ownerId || item.hubspotOwnerId === input.hubspotOwnerId);
+    const existing = data.agents.find((agent) => agent.email.toLowerCase() === email);
+    const now = new Date().toISOString();
+    const agent = existing || {
+      id: randomUUID(),
+      name,
+      email,
+      ownerId: owner?.id || '',
+      hubspotOwnerId: owner?.hubspotOwnerId || String(input.hubspotOwnerId || ''),
+      status: 'invited',
+      extensionStatus: 'not_installed',
+      apiToken: '',
+      invitedAt: now,
+      acceptedAt: '',
+      lastSeenAt: '',
+      createdAt: now,
+      updatedAt: now
+    };
+
+    Object.assign(agent, {
+      name,
+      email,
+      ownerId: owner?.id || agent.ownerId || '',
+      hubspotOwnerId: owner?.hubspotOwnerId || agent.hubspotOwnerId || String(input.hubspotOwnerId || ''),
+      status: agent.status === 'active' ? 'active' : 'invited',
+      invitedAt: now,
+      updatedAt: now
+    });
+
+    if (!existing) data.agents.unshift(agent);
+
+    const token = inviteToken();
+    const invite = {
+      id: randomUUID(),
+      token,
+      agentId: agent.id,
+      email,
+      status: 'pending',
+      inviteUrl: defaultInviteUrl(token, publicBaseUrl),
+      emailSent: false,
+      emailError: '',
+      createdAt: now,
+      expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 14).toISOString(),
+      acceptedAt: ''
+    };
+
+    data.agentInvites.unshift(invite);
+    data.events.unshift({
+      id: randomUUID(),
+      type: 'agent_invited',
+      message: `Invited ${agent.name}`,
+      details: { agentId: agent.id, email },
+      createdAt: now
+    });
+
+    return { agent, invite };
+  });
+}
+
+export function updateAgentInviteEmailStatus(inviteId, patch) {
+  return updateStore((data) => {
+    const invite = data.agentInvites.find((item) => item.id === inviteId);
+    if (!invite) throw new Error('Invite not found');
+    Object.assign(invite, patch);
+    return invite;
+  });
+}
+
+export function getAgentInvite(token) {
+  const data = getStore();
+  const invite = data.agentInvites.find((item) => item.token === token);
+  if (!invite) return null;
+  const agent = data.agents.find((item) => item.id === invite.agentId);
+  return { invite, agent };
+}
+
+export function acceptAgentInvite(token, input = {}) {
+  return updateStore((data) => {
+    const invite = data.agentInvites.find((item) => item.token === token);
+    if (!invite) throw new Error('Invite not found');
+    if (invite.status !== 'pending') throw new Error('Invite is no longer active');
+    if (new Date(invite.expiresAt).getTime() < Date.now()) throw new Error('Invite has expired');
+
+    const agent = data.agents.find((item) => item.id === invite.agentId);
+    if (!agent) throw new Error('Agent not found');
+
+    const now = new Date().toISOString();
+    const apiToken = `txa_${inviteToken()}`;
+    Object.assign(agent, {
+      name: String(input.name || agent.name).trim() || agent.name,
+      status: 'active',
+      extensionStatus: 'connected',
+      apiToken,
+      acceptedAt: now,
+      lastSeenAt: now,
+      updatedAt: now
+    });
+    Object.assign(invite, {
+      status: 'accepted',
+      acceptedAt: now
+    });
+
+    data.events.unshift({
+      id: randomUUID(),
+      type: 'agent_invite_accepted',
+      message: `${agent.name} accepted the invite`,
+      details: { agentId: agent.id, email: agent.email },
+      createdAt: now
+    });
+
+    return {
+      agent: { ...agent, apiToken },
+      token: apiToken
+    };
+  });
+}
+
+export function agentFromApiToken(token) {
+  if (!token) return null;
+  const data = getStore();
+  const agent = data.agents.find((item) => item.apiToken === token && item.status === 'active');
+  if (!agent) return null;
+  return agent;
+}
+
+export function touchAgent(agentId) {
+  return updateStore((data) => {
+    const agent = data.agents.find((item) => item.id === agentId);
+    if (!agent) throw new Error('Agent not found');
+    agent.lastSeenAt = new Date().toISOString();
+    agent.extensionStatus = 'connected';
+    agent.updatedAt = agent.lastSeenAt;
+    return agent;
   });
 }
 
