@@ -67,12 +67,13 @@ export function evaluateLeadForDial(lead, campaign, context = {}) {
   }
 
   const timeZone = lead.timeZone || 'America/New_York';
+  const timeZoneLabel = lead.timeZoneLabel || timeZone;
   const start = parseClock(campaign.callWindowStart || config.compliance.defaultCallWindowStart);
   const end = parseClock(campaign.callWindowEnd || config.compliance.defaultCallWindowEnd);
   const now = localClockMinutes(timeZone);
 
   if (now < start || now >= end) {
-    return { allowed: false, reason: `Outside local call window in ${timeZone}` };
+    return { allowed: false, reason: `Outside local call window in ${timeZoneLabel}` };
   }
 
   return { allowed: true, phone, reason: 'Allowed' };

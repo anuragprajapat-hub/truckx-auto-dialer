@@ -52,10 +52,18 @@ function normalizeTimeZone(value) {
   return TIME_ZONE_MAP[upper] || raw;
 }
 
+function displayTimeZone(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return 'EST';
+  const upper = raw.toUpperCase();
+  return TIME_ZONE_MAP[upper] ? upper : raw;
+}
+
 function mapContact(contact, owner) {
   const props = contact.properties || {};
   const field = config.hubspot.properties;
   const name = [props.firstname, props.lastname].filter(Boolean).join(' ') || props.email || 'Unnamed Contact';
+  const rawTimeZone = props[field.timeZone] || props.timezone;
 
   return {
     hubspotId: contact.id,
@@ -65,7 +73,8 @@ function mapContact(contact, owner) {
     company: props.company || '',
     phone: props.phone || props.mobilephone || '',
     email: props.email || '',
-    timeZone: normalizeTimeZone(props[field.timeZone] || props.timezone),
+    timeZone: normalizeTimeZone(rawTimeZone),
+    timeZoneLabel: displayTimeZone(rawTimeZone),
     status: props[field.leadStatus] || props.lifecyclestage || 'new',
     consent: booleanFromHubSpot(props[field.consent]),
     doNotCall: booleanFromHubSpot(props[field.doNotCall]),

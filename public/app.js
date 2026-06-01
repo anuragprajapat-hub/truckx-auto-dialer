@@ -171,7 +171,7 @@ function renderSelectedCampaign() {
             </div>
           </td>
           <td>${escapeHtml(lead.phone)}</td>
-          <td>${escapeHtml(lead.timeZone || '')}</td>
+          <td>${escapeHtml(lead.timeZoneLabel || lead.timeZone || '')}</td>
           <td>${statusPill(lead.status)}</td>
           <td>${escapeHtml(lead.attempts || 0)}</td>
           <td>${allowed}<br><span>${escapeHtml(check.reason || '')}</span></td>
