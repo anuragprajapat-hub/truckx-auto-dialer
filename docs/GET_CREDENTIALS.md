@@ -73,6 +73,14 @@ time_zone
 
 If the display label is similar but the internal name is different, put the real internal name into `HUBSPOT_PROP_LAST_OUTCOME` or `HUBSPOT_PROP_TIME_ZONE`.
 
+By default Truckx only dials leads with these statuses:
+
+```text
+CALLABLE_LEAD_STATUSES=new,retry,no_answer
+```
+
+Statuses like `Won`, `REJECTED`, `VOICEMAIL`, and blank statuses are blocked unless you intentionally add them to `CALLABLE_LEAD_STATUSES`.
+
 ## 2. Voice Provider
 
 Choose one provider first. I recommend starting with **Plivo** if you want lower carrier cost, or **Twilio** if you prefer broader docs and tooling.

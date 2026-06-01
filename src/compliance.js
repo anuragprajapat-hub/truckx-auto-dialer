@@ -36,6 +36,10 @@ export function normalizeUsPhone(phone) {
   return '';
 }
 
+export function isCallableStatus(status) {
+  return config.compliance.callableStatuses.includes(String(status || '').toLowerCase());
+}
+
 export function evaluateLeadForDial(lead, campaign, context = {}) {
   const phone = normalizeUsPhone(lead.phone);
   if (!phone) {
@@ -52,6 +56,10 @@ export function evaluateLeadForDial(lead, campaign, context = {}) {
 
   if (!lead.consent) {
     return { allowed: false, reason: 'Missing consent flag' };
+  }
+
+  if (!isCallableStatus(lead.status)) {
+    return { allowed: false, reason: `Lead status is not callable: ${lead.status || 'blank'}` };
   }
 
   if ((lead.attempts || 0) >= config.compliance.maxAttemptsPerLead) {

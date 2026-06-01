@@ -1,13 +1,11 @@
 import { config } from './config.js';
-import { evaluateLeadForDial } from './compliance.js';
+import { evaluateLeadForDial, isCallableStatus } from './compliance.js';
 import { addCall, addEvent, getStore, setCampaignStatus, updateCall, updateLead, upsertLeads, upsertOwners } from './store.js';
 import { createHubSpotCallLog, fetchContactsForOwner, fetchHubSpotOwners, updateHubSpotLead } from './hubspot.js';
 import { createVoiceProvider } from './voice/index.js';
 import { selectCallerIdNumber } from './voice/callerId.js';
 
 const ACTIVE_STATUSES = new Set(['dialing', 'queued', 'ringing', 'in_progress']);
-const READY_LEAD_STATUSES = new Set(['new', 'retry', 'no_answer']);
-
 function outcomeToLeadStatus(outcome, attempts = 0) {
   if (outcome === 'live_answer') return 'connected';
   if (outcome === 'voicemail') return 'voicemail';
@@ -113,13 +111,13 @@ export class DialerEngine {
       const activeLeadIds = new Set(activeCalls.map((call) => call.leadId));
       const leads = fresh.leads
         .filter((lead) => lead.ownerId === campaign.ownerId)
-        .filter((lead) => READY_LEAD_STATUSES.has(String(lead.status || '').toLowerCase()))
+        .filter((lead) => isCallableStatus(lead.status))
         .filter((lead) => !activeLeadIds.has(lead.id))
         .filter((lead) => evaluateLeadForDial(lead, campaign, { dncNumbers }).allowed)
         .slice(0, openSlots);
 
       if (!leads.length && activeCalls.length === 0) {
-        const anyReady = fresh.leads.some((lead) => lead.ownerId === campaign.ownerId && READY_LEAD_STATUSES.has(String(lead.status || '').toLowerCase()));
+        const anyReady = fresh.leads.some((lead) => lead.ownerId === campaign.ownerId && isCallableStatus(lead.status));
         if (!anyReady) {
           setCampaignStatus(campaign.id, 'complete');
           addEvent('campaign_complete', `Campaign ${campaign.name} completed`, { campaignId: campaign.id });
