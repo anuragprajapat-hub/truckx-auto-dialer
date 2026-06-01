@@ -102,7 +102,9 @@ function setupStatus() {
         label: 'HubSpot',
         ok: config.leadSource !== 'hubspot' || Boolean(config.hubspot.privateAppToken),
         value: config.leadSource,
-        message: config.leadSource === 'hubspot' ? 'Private app token required' : 'Mock lead source'
+        message: config.leadSource === 'hubspot'
+          ? (config.hubspot.privateAppToken ? 'Private app token configured' : 'Private app token required')
+          : 'Mock lead source'
       },
       {
         id: 'webhooks',
