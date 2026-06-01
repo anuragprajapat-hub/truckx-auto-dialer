@@ -1,6 +1,16 @@
 import { config } from './config.js';
 
 const HUBSPOT_BASE = 'https://api.hubapi.com';
+const TIME_ZONE_MAP = {
+  EST: 'America/New_York',
+  EDT: 'America/New_York',
+  CST: 'America/Chicago',
+  CDT: 'America/Chicago',
+  MST: 'America/Denver',
+  MDT: 'America/Denver',
+  PST: 'America/Los_Angeles',
+  PDT: 'America/Los_Angeles'
+};
 
 function hasHubSpotToken() {
   return Boolean(config.hubspot.privateAppToken);
@@ -30,6 +40,18 @@ async function hubspotFetch(path, options = {}) {
   return body;
 }
 
+function booleanFromHubSpot(value) {
+  const normalized = String(value ?? '').trim().toLowerCase();
+  return value === true || ['true', 'yes', 'y', '1', 'checked'].includes(normalized);
+}
+
+function normalizeTimeZone(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return 'America/New_York';
+  const upper = raw.toUpperCase();
+  return TIME_ZONE_MAP[upper] || raw;
+}
+
 function mapContact(contact, owner) {
   const props = contact.properties || {};
   const field = config.hubspot.properties;
@@ -43,10 +65,10 @@ function mapContact(contact, owner) {
     company: props.company || '',
     phone: props.phone || props.mobilephone || '',
     email: props.email || '',
-    timeZone: props[field.timeZone] || props.timezone || 'America/New_York',
+    timeZone: normalizeTimeZone(props[field.timeZone] || props.timezone),
     status: props[field.leadStatus] || props.lifecyclestage || 'new',
-    consent: props[field.consent] === 'true' || props[field.consent] === true,
-    doNotCall: props[field.doNotCall] === 'true' || props[field.doNotCall] === true,
+    consent: booleanFromHubSpot(props[field.consent]),
+    doNotCall: booleanFromHubSpot(props[field.doNotCall]),
     attempts: Number(props[field.attempts] || 0),
     lastOutcome: props[field.lastOutcome] || ''
   };

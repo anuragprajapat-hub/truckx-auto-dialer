@@ -60,15 +60,15 @@ HUBSPOT_PROP_CONSENT=dialer_consent
 HUBSPOT_PROP_DNC=do_not_call
 HUBSPOT_PROP_ATTEMPTS=dialer_attempts
 HUBSPOT_PROP_LAST_OUTCOME=last_call_outcome
-HUBSPOT_PROP_TIME_ZONE=us_time_zone
+HUBSPOT_PROP_TIME_ZONE=time_zone
 HUBSPOT_PROP_LEAD_STATUS=hs_lead_status
 ```
 
-For the properties you mentioned, if their internal names are exactly below, they are already linked by default:
+For the properties you mentioned, Truckx now defaults to these internal names:
 
 ```text
 last_call_outcome
-us_time_zone
+time_zone
 ```
 
 If the display label is similar but the internal name is different, put the real internal name into `HUBSPOT_PROP_LAST_OUTCOME` or `HUBSPOT_PROP_TIME_ZONE`.
@@ -152,7 +152,7 @@ mobilephone
 hs_lead_status
 dialer_consent
 do_not_call
-us_time_zone
+time_zone
 ```
 
 Set event throttling low at first, for example `10`, then increase it after testing.

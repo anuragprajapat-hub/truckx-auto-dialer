@@ -52,7 +52,7 @@ export const config = {
       doNotCall: process.env.HUBSPOT_PROP_DNC || 'do_not_call',
       attempts: process.env.HUBSPOT_PROP_ATTEMPTS || 'dialer_attempts',
       lastOutcome: process.env.HUBSPOT_PROP_LAST_OUTCOME || 'last_call_outcome',
-      timeZone: process.env.HUBSPOT_PROP_TIME_ZONE || 'us_time_zone',
+      timeZone: process.env.HUBSPOT_PROP_TIME_ZONE || 'time_zone',
       leadStatus: process.env.HUBSPOT_PROP_LEAD_STATUS || 'hs_lead_status'
     }
   },

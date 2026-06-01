@@ -57,9 +57,9 @@ Create a HubSpot private app with scopes for reading contacts/owners and writing
 ```text
 dialer_consent
 do_not_call
-dialer_attempts
+time_zone
 last_call_outcome
-us_time_zone
+dialer_attempts
 ```
 
 If you already have existing properties, link them by internal name in Render:
@@ -69,7 +69,7 @@ HUBSPOT_PROP_CONSENT=dialer_consent
 HUBSPOT_PROP_DNC=do_not_call
 HUBSPOT_PROP_ATTEMPTS=dialer_attempts
 HUBSPOT_PROP_LAST_OUTCOME=last_call_outcome
-HUBSPOT_PROP_TIME_ZONE=us_time_zone
+HUBSPOT_PROP_TIME_ZONE=time_zone
 HUBSPOT_PROP_LEAD_STATUS=hs_lead_status
 ```
 

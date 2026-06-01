@@ -6,12 +6,22 @@ function parseClock(value) {
 }
 
 function localClockMinutes(timeZone, date = new Date()) {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone,
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false
-  }).formatToParts(date);
+  let parts;
+  try {
+    parts = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    }).formatToParts(date);
+  } catch {
+    parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/New_York',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    }).formatToParts(date);
+  }
 
   const hour = Number(parts.find((part) => part.type === 'hour')?.value || 0);
   const minute = Number(parts.find((part) => part.type === 'minute')?.value || 0);
