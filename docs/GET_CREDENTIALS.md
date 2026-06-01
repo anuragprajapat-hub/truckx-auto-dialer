@@ -51,6 +51,28 @@ crm.objects.calls.write
 
 That is okay. HubSpot's current calls API documentation lists contact scopes for logging calls against contact records, so `crm.objects.contacts.write` is the important write permission for Truckx call logging.
 
+## HubSpot Property Mapping
+
+If you already have HubSpot properties, use their exact **internal names** instead of creating duplicates. Configure them in Render or `.env`:
+
+```text
+HUBSPOT_PROP_CONSENT=dialer_consent
+HUBSPOT_PROP_DNC=do_not_call
+HUBSPOT_PROP_ATTEMPTS=dialer_attempts
+HUBSPOT_PROP_LAST_OUTCOME=last_call_outcome
+HUBSPOT_PROP_TIME_ZONE=us_time_zone
+HUBSPOT_PROP_LEAD_STATUS=hs_lead_status
+```
+
+For the properties you mentioned, if their internal names are exactly below, they are already linked by default:
+
+```text
+last_call_outcome
+us_time_zone
+```
+
+If the display label is similar but the internal name is different, put the real internal name into `HUBSPOT_PROP_LAST_OUTCOME` or `HUBSPOT_PROP_TIME_ZONE`.
+
 ## 2. Voice Provider
 
 Choose one provider first. I recommend starting with **Plivo** if you want lower carrier cost, or **Twilio** if you prefer broader docs and tooling.

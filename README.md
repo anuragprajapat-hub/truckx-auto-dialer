@@ -62,6 +62,17 @@ last_call_outcome
 us_time_zone
 ```
 
+If you already have existing properties, link them by internal name in Render:
+
+```text
+HUBSPOT_PROP_CONSENT=dialer_consent
+HUBSPOT_PROP_DNC=do_not_call
+HUBSPOT_PROP_ATTEMPTS=dialer_attempts
+HUBSPOT_PROP_LAST_OUTCOME=last_call_outcome
+HUBSPOT_PROP_TIME_ZONE=us_time_zone
+HUBSPOT_PROP_LEAD_STATUS=hs_lead_status
+```
+
 Use the dashboard setup panel or these endpoints:
 
 ```text

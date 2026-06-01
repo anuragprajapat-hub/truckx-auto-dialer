@@ -239,6 +239,7 @@ async function handleApi(request, response, url) {
         leadSource: config.leadSource,
         callerIdNumber: config.callerIdNumber,
         callerIdNumbers: config.callerIdNumbers,
+        hubspotProperties: config.hubspot.properties,
         maxAttemptsPerLead: config.compliance.maxAttemptsPerLead
       },
       owners: data.owners,

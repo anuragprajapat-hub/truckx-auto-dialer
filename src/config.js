@@ -46,7 +46,15 @@ export const config = {
   defaultAgentPhone: process.env.DEFAULT_AGENT_PHONE || '+15557654321',
   voicemailAudioUrl: process.env.VOICEMAIL_AUDIO_URL || '',
   hubspot: {
-    privateAppToken: process.env.HUBSPOT_PRIVATE_APP_TOKEN || ''
+    privateAppToken: process.env.HUBSPOT_PRIVATE_APP_TOKEN || '',
+    properties: {
+      consent: process.env.HUBSPOT_PROP_CONSENT || 'dialer_consent',
+      doNotCall: process.env.HUBSPOT_PROP_DNC || 'do_not_call',
+      attempts: process.env.HUBSPOT_PROP_ATTEMPTS || 'dialer_attempts',
+      lastOutcome: process.env.HUBSPOT_PROP_LAST_OUTCOME || 'last_call_outcome',
+      timeZone: process.env.HUBSPOT_PROP_TIME_ZONE || 'us_time_zone',
+      leadStatus: process.env.HUBSPOT_PROP_LEAD_STATUS || 'hs_lead_status'
+    }
   },
   twilio: {
     accountSid: process.env.TWILIO_ACCOUNT_SID || '',

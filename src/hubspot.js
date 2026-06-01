@@ -32,6 +32,7 @@ async function hubspotFetch(path, options = {}) {
 
 function mapContact(contact, owner) {
   const props = contact.properties || {};
+  const field = config.hubspot.properties;
   const name = [props.firstname, props.lastname].filter(Boolean).join(' ') || props.email || 'Unnamed Contact';
 
   return {
@@ -42,12 +43,12 @@ function mapContact(contact, owner) {
     company: props.company || '',
     phone: props.phone || props.mobilephone || '',
     email: props.email || '',
-    timeZone: props.us_time_zone || props.timezone || 'America/New_York',
-    status: props.hs_lead_status || props.lifecyclestage || 'new',
-    consent: props.dialer_consent === 'true' || props.dialer_consent === true,
-    doNotCall: props.do_not_call === 'true' || props.do_not_call === true,
-    attempts: Number(props.dialer_attempts || 0),
-    lastOutcome: props.last_call_outcome || ''
+    timeZone: props[field.timeZone] || props.timezone || 'America/New_York',
+    status: props[field.leadStatus] || props.lifecyclestage || 'new',
+    consent: props[field.consent] === 'true' || props[field.consent] === true,
+    doNotCall: props[field.doNotCall] === 'true' || props[field.doNotCall] === true,
+    attempts: Number(props[field.attempts] || 0),
+    lastOutcome: props[field.lastOutcome] || ''
   };
 }
 
@@ -86,6 +87,7 @@ export async function fetchHubSpotOwners() {
 }
 
 export async function fetchContactsForOwner(owner, limit = 100) {
+  const field = config.hubspot.properties;
   const body = {
     filterGroups: [
       {
@@ -106,15 +108,15 @@ export async function fetchContactsForOwner(owner, limit = 100) {
       'mobilephone',
       'company',
       'hubspot_owner_id',
-      'hs_lead_status',
+      field.leadStatus,
       'lifecyclestage',
-      'dialer_consent',
-      'do_not_call',
-      'dialer_attempts',
-      'last_call_outcome',
-      'us_time_zone',
+      field.consent,
+      field.doNotCall,
+      field.attempts,
+      field.lastOutcome,
+      field.timeZone,
       'timezone'
-    ],
+    ].filter((property, index, properties) => property && properties.indexOf(property) === index),
     limit
   };
 
@@ -131,10 +133,11 @@ export async function updateHubSpotLead(lead, patch) {
     return { skipped: true };
   }
 
+  const field = config.hubspot.properties;
   const properties = {};
-  if (patch.status) properties.hs_lead_status = patch.status;
-  if (patch.lastOutcome) properties.last_call_outcome = patch.lastOutcome;
-  if (typeof patch.attempts === 'number') properties.dialer_attempts = String(patch.attempts);
+  if (patch.status) properties[field.leadStatus] = patch.status;
+  if (patch.lastOutcome) properties[field.lastOutcome] = patch.lastOutcome;
+  if (typeof patch.attempts === 'number') properties[field.attempts] = String(patch.attempts);
 
   if (!Object.keys(properties).length) {
     return { skipped: true };
