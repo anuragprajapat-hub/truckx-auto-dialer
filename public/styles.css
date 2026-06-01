@@ -61,6 +61,7 @@ button:disabled {
 
 h1,
 h2,
+h3,
 p {
   margin: 0;
 }
@@ -74,6 +75,10 @@ h2 {
   font-size: 16px;
 }
 
+h3 {
+  font-size: 14px;
+}
+
 .topbar p,
 .panel-title p {
   color: var(--muted);
@@ -83,7 +88,7 @@ h2 {
 
 .status-strip {
   display: grid;
-  grid-template-columns: repeat(4, minmax(92px, 1fr));
+  grid-template-columns: repeat(6, minmax(92px, 1fr));
   gap: 10px;
 }
 
@@ -151,7 +156,7 @@ h2 {
 
 .form-grid label:nth-child(1),
 .form-grid label:nth-child(2),
-.form-grid label:nth-child(4),
+.form-grid label:nth-child(6),
 .form-grid button {
   grid-column: 1 / -1;
 }
@@ -245,6 +250,30 @@ select {
   color: var(--teal);
 }
 
+.disposition-panel {
+  align-items: center;
+  background: #fbfcf8;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(180px, 1fr) minmax(260px, 1.6fr);
+  margin-bottom: 12px;
+  padding: 12px;
+}
+
+.disposition-panel p {
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+.disposition-panel form {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(140px, 1fr) minmax(120px, 1fr) auto;
+}
+
 .table-wrap {
   overflow: auto;
   border: 1px solid var(--line);
@@ -318,10 +347,14 @@ tr:last-child td {
 }
 
 .pill.stopped,
+.pill.paused,
+.pill.connected_pending,
 .pill.failed,
 .pill.do_not_call,
 .pill.blocked,
 .pill.exhausted,
+.pill.canceled,
+.pill.canceled_after_connect,
 .pill.missing {
   background: var(--rose-soft);
   color: var(--rose);
@@ -337,6 +370,7 @@ tr:last-child td {
 .call-stack,
 .log-list,
 .event-list,
+.report-list,
 .setup-list {
   display: grid;
   gap: 10px;
@@ -403,7 +437,8 @@ tr:last-child td {
 
 .call-card,
 .log-item,
-.event-item {
+.event-item,
+.report-item {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 11px;
@@ -413,15 +448,31 @@ tr:last-child td {
 
 .call-card strong,
 .log-item strong,
-.event-item strong {
+.event-item strong,
+.report-item strong {
   font-size: 13px;
 }
 
 .call-card span,
 .log-item span,
-.event-item span {
+.event-item span,
+.report-item span {
   color: var(--muted);
   font-size: 12px;
+}
+
+.report-metrics {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.report-metrics span {
+  background: #f7f8f4;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--ink);
+  padding: 7px;
 }
 
 .empty {
@@ -457,6 +508,11 @@ tr:last-child td {
   }
 
   .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .disposition-panel,
+  .disposition-panel form {
     grid-template-columns: 1fr;
   }
 }

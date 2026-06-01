@@ -5,9 +5,11 @@ let selectedCampaignId = '';
 const elements = {
   systemLine: document.querySelector('#systemLine'),
   statCampaigns: document.querySelector('#statCampaigns'),
+  statDials: document.querySelector('#statDials'),
   statActive: document.querySelector('#statActive'),
   statConnected: document.querySelector('#statConnected'),
   statVm: document.querySelector('#statVm'),
+  statHours: document.querySelector('#statHours'),
   ownerSelect: document.querySelector('#ownerSelect'),
   syncOwnersButton: document.querySelector('#syncOwnersButton'),
   campaignForm: document.querySelector('#campaignForm'),
@@ -20,6 +22,12 @@ const elements = {
   callLog: document.querySelector('#callLog'),
   eventLog: document.querySelector('#eventLog'),
   setupStatus: document.querySelector('#setupStatus'),
+  agentReports: document.querySelector('#agentReports'),
+  dispositionPanel: document.querySelector('#dispositionPanel'),
+  dispositionLead: document.querySelector('#dispositionLead'),
+  dispositionForm: document.querySelector('#dispositionForm'),
+  dispositionStatus: document.querySelector('#dispositionStatus'),
+  dispositionNote: document.querySelector('#dispositionNote'),
   dncForm: document.querySelector('#dncForm'),
   dncPhone: document.querySelector('#dncPhone'),
   dncReason: document.querySelector('#dncReason'),
@@ -60,6 +68,42 @@ function statusPill(value, extraClass = '') {
   return `<span class="pill ${escapeHtml(clean)} ${extraClass}">${escapeHtml(clean.replaceAll('_', ' '))}</span>`;
 }
 
+function campaignTarget(campaign) {
+  const target = String(campaign?.timeZoneTarget || 'ALL').toUpperCase();
+  return ['EST', 'CST', 'MST', 'PST'].includes(target) ? target : 'ALL';
+}
+
+function leadZone(lead) {
+  const value = String(lead.timeZoneLabel || lead.timeZone || '').trim();
+  const ianaMap = {
+    'America/New_York': 'EST',
+    'America/Chicago': 'CST',
+    'America/Denver': 'MST',
+    'America/Phoenix': 'MST',
+    'America/Los_Angeles': 'PST'
+  };
+  return ianaMap[value] || value.toUpperCase();
+}
+
+function leadMatchesCampaign(lead, campaign) {
+  const target = campaignTarget(campaign);
+  return target === 'ALL' || leadZone(lead) === target;
+}
+
+function formatDuration(seconds) {
+  const total = Number(seconds || 0);
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  if (hours) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
+}
+
+function pendingDispositionCall() {
+  const campaign = selectedCampaign();
+  if (!campaign) return null;
+  return state.calls.find((call) => call.campaignId === campaign.id && call.requiresDisposition);
+}
+
 function setNotice(message, type = 'info') {
   if (!message) {
     elements.notice.hidden = true;
@@ -95,12 +139,16 @@ function renderStats() {
   const activeCalls = state.calls.filter((call) => ['dialing', 'queued', 'ringing', 'in_progress'].includes(call.status));
   const connected = state.calls.filter((call) => call.outcome === 'live_answer').length;
   const vm = state.calls.filter((call) => call.outcome === 'voicemail').length;
+  const reports = state.reports?.agents || [];
+  const dialerSeconds = reports.reduce((sum, report) => sum + Number(report.dialerSeconds || 0), 0);
 
   elements.systemLine.textContent = `Provider: ${state.settings.voiceProvider} | Lead source: ${state.settings.leadSource} | Caller IDs: ${state.settings.callerIdNumbers.length}`;
   elements.statCampaigns.textContent = state.campaigns.length;
+  elements.statDials.textContent = state.calls.length;
   elements.statActive.textContent = activeCalls.length;
   elements.statConnected.textContent = connected;
   elements.statVm.textContent = vm;
+  elements.statHours.textContent = formatDuration(dialerSeconds);
 }
 
 function renderCampaigns() {
@@ -119,7 +167,7 @@ function renderCampaigns() {
       return `
         <button class="campaign-item ${active}" data-campaign-id="${escapeHtml(campaign.id)}">
           <strong>${escapeHtml(campaign.name)}</strong>
-          <span>${escapeHtml(owner?.name || 'Unknown owner')} | ${campaign.maxParallelCalls} lines | ${campaign.status}</span>
+          <span>${escapeHtml(owner?.name || 'Unknown owner')} | ${campaignTarget(campaign)} | ${campaign.maxParallelCalls} lines | ${campaign.status}</span>
         </button>
       `;
     })
@@ -146,15 +194,17 @@ function renderSelectedCampaign() {
   }
 
   const owner = state.owners.find((item) => item.id === campaign.ownerId);
-  const campaignLeads = state.leads.filter((lead) => lead.ownerId === campaign.ownerId);
+  const campaignLeads = state.leads
+    .filter((lead) => lead.ownerId === campaign.ownerId)
+    .filter((lead) => leadMatchesCampaign(lead, campaign));
   elements.activeCampaignName.textContent = campaign.name;
-  elements.activeCampaignMeta.textContent = `${owner?.name || 'Owner'} | ${campaign.status} | ${campaign.callWindowStart}-${campaign.callWindowEnd} local`;
-  elements.startButton.disabled = campaign.status === 'running';
-  elements.stopButton.disabled = campaign.status !== 'running';
+  elements.activeCampaignMeta.textContent = `${owner?.name || 'Owner'} | ${campaign.status} | ${campaignTarget(campaign)} | ${campaign.maxParallelCalls} lines | ${campaign.callWindowStart}-${campaign.callWindowEnd} local`;
+  elements.startButton.disabled = ['running', 'connected'].includes(campaign.status);
+  elements.stopButton.disabled = !['running', 'connected', 'paused'].includes(campaign.status);
   elements.syncHubSpotButton.disabled = state.settings.leadSource !== 'hubspot';
 
   if (!campaignLeads.length) {
-    elements.leadRows.innerHTML = '<tr><td colspan="6">No leads for this owner.</td></tr>';
+    elements.leadRows.innerHTML = '<tr><td colspan="6">No leads match this owner and timezone.</td></tr>';
     return;
   }
 
@@ -274,6 +324,41 @@ function renderDnc() {
   });
 }
 
+function renderDisposition() {
+  const call = pendingDispositionCall();
+  if (!call) {
+    elements.dispositionPanel.hidden = true;
+    elements.dispositionForm.dataset.callId = '';
+    return;
+  }
+
+  elements.dispositionPanel.hidden = false;
+  elements.dispositionLead.textContent = `${call.leadName} | ${call.leadPhone} | ${call.outcome || 'completed'}`;
+  elements.dispositionForm.dataset.callId = call.id;
+}
+
+function renderReports() {
+  const reports = state.reports?.agents || [];
+  elements.agentReports.innerHTML = reports.length
+    ? reports
+        .map((report) => `
+          <div class="report-item">
+            <strong>${escapeHtml(report.name)}</strong>
+            <span>${escapeHtml(report.email || report.hubspotOwnerId || '')}</span>
+            <div class="report-metrics">
+              <span>${escapeHtml(report.totalCalls)} calls</span>
+              <span>${escapeHtml(report.connected)} live</span>
+              <span>${escapeHtml(report.voicemail)} VM</span>
+              <span>${escapeHtml(formatDuration(report.dialerSeconds))}</span>
+              <span>${escapeHtml(report.activeCalls)} active</span>
+              <span>${escapeHtml(report.noAnswer)} no answer</span>
+            </div>
+          </div>
+        `)
+        .join('')
+    : '<div class="empty">No agent activity yet</div>';
+}
+
 async function loadState() {
   [state, setup] = await Promise.all([api('/api/state'), api('/api/setup')]);
   const campaign = selectedCampaign();
@@ -295,6 +380,8 @@ function render() {
   renderCalls();
   renderEvents();
   renderSetup();
+  renderDisposition();
+  renderReports();
   renderDnc();
 }
 
@@ -312,6 +399,27 @@ elements.campaignForm.addEventListener('submit', async (event) => {
   });
   selectedCampaignId = campaign.id;
   await loadState();
+});
+
+elements.dispositionForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const callId = elements.dispositionForm.dataset.callId;
+  if (!callId) return;
+
+  try {
+    await api(`/api/calls/${callId}/disposition`, {
+      method: 'POST',
+      body: JSON.stringify({
+        status: elements.dispositionStatus.value,
+        note: elements.dispositionNote.value
+      })
+    });
+    elements.dispositionForm.reset();
+    setNotice('Lead status saved. Press Start when the agent is ready to keep dialing.', 'success');
+    await loadState();
+  } catch (error) {
+    setNotice(`Status save failed: ${error.message}`, 'error');
+  }
 });
 
 elements.refreshButton.addEventListener('click', loadState);

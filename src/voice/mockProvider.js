@@ -21,6 +21,9 @@ export function createMockProvider() {
 
       const index = Math.abs([...call.leadId].reduce((sum, char) => sum + char.charCodeAt(0), 0) + call.attempt) % outcomes.length;
       return outcomes[index];
+    },
+    async cancelOutboundCall() {
+      return { canceled: true };
     }
   };
 }

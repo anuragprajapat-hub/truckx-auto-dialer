@@ -1,17 +1,7 @@
 import { config } from './config.js';
+import { displayTimeZone, normalizeTimeZone } from './timeZones.js';
 
 const HUBSPOT_BASE = 'https://api.hubapi.com';
-const TIME_ZONE_MAP = {
-  EST: 'America/New_York',
-  EDT: 'America/New_York',
-  CST: 'America/Chicago',
-  CDT: 'America/Chicago',
-  MST: 'America/Denver',
-  MDT: 'America/Denver',
-  PST: 'America/Los_Angeles',
-  PDT: 'America/Los_Angeles'
-};
-
 function hasHubSpotToken() {
   return Boolean(config.hubspot.privateAppToken);
 }
@@ -43,20 +33,6 @@ async function hubspotFetch(path, options = {}) {
 function booleanFromHubSpot(value) {
   const normalized = String(value ?? '').trim().toLowerCase();
   return value === true || ['true', 'yes', 'y', '1', 'checked'].includes(normalized);
-}
-
-function normalizeTimeZone(value) {
-  const raw = String(value || '').trim();
-  if (!raw) return 'America/New_York';
-  const upper = raw.toUpperCase();
-  return TIME_ZONE_MAP[upper] || raw;
-}
-
-function displayTimeZone(value) {
-  const raw = String(value || '').trim();
-  if (!raw) return 'EST';
-  const upper = raw.toUpperCase();
-  return TIME_ZONE_MAP[upper] ? upper : raw;
 }
 
 function mapContact(contact, owner) {
@@ -117,46 +93,56 @@ export async function fetchHubSpotOwners() {
     .map(mapOwner);
 }
 
-export async function fetchContactsForOwner(owner, limit = 100) {
+export async function fetchContactsForOwner(owner, limit = config.hubspot.syncLimit) {
   const field = config.hubspot.properties;
-  const body = {
-    filterGroups: [
-      {
-        filters: [
-          {
-            propertyName: 'hubspot_owner_id',
-            operator: 'EQ',
-            value: owner.hubspotOwnerId
-          }
-        ]
-      }
-    ],
-    properties: [
-      'firstname',
-      'lastname',
-      'email',
-      'phone',
-      'mobilephone',
-      'company',
-      'hubspot_owner_id',
-      field.leadStatus,
-      'lifecyclestage',
-      field.consent,
-      field.doNotCall,
-      field.attempts,
-      field.lastOutcome,
-      field.timeZone,
-      'timezone'
-    ].filter((property, index, properties) => property && properties.indexOf(property) === index),
-    limit
-  };
+  const contacts = [];
+  let after = '';
 
-  const result = await hubspotFetch('/crm/v3/objects/contacts/search', {
-    method: 'POST',
-    body: JSON.stringify(body)
-  });
+  do {
+    const body = {
+      filterGroups: [
+        {
+          filters: [
+            {
+              propertyName: 'hubspot_owner_id',
+              operator: 'EQ',
+              value: owner.hubspotOwnerId
+            }
+          ]
+        }
+      ],
+      properties: [
+        'firstname',
+        'lastname',
+        'email',
+        'phone',
+        'mobilephone',
+        'company',
+        'hubspot_owner_id',
+        field.leadStatus,
+        'lifecyclestage',
+        field.consent,
+        field.doNotCall,
+        field.attempts,
+        field.lastOutcome,
+        field.timeZone,
+        'timezone'
+      ].filter((property, index, properties) => property && properties.indexOf(property) === index),
+      limit: Math.min(100, Math.max(1, limit - contacts.length))
+    };
 
-  return (result.results || []).map((contact) => mapContact(contact, owner));
+    if (after) body.after = after;
+
+    const result = await hubspotFetch('/crm/v3/objects/contacts/search', {
+      method: 'POST',
+      body: JSON.stringify(body)
+    });
+
+    contacts.push(...(result.results || []));
+    after = result.paging?.next?.after || '';
+  } while (after && contacts.length < limit);
+
+  return contacts.map((contact) => mapContact(contact, owner));
 }
 
 export async function updateHubSpotLead(lead, patch) {

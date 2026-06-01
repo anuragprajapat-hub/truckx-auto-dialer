@@ -2,10 +2,12 @@ import { config } from './config.js';
 import { evaluateLeadForDial, isCallableStatus } from './compliance.js';
 import { addCall, addEvent, getStore, setCampaignStatus, updateCall, updateLead, upsertLeads, upsertOwners } from './store.js';
 import { createHubSpotCallLog, fetchContactsForOwner, fetchHubSpotOwners, updateHubSpotLead } from './hubspot.js';
+import { matchesCampaignTimeZone } from './timeZones.js';
 import { createVoiceProvider } from './voice/index.js';
 import { selectCallerIdNumber } from './voice/callerId.js';
 
 const ACTIVE_STATUSES = new Set(['dialing', 'queued', 'ringing', 'in_progress']);
+const CANCELABLE_STATUSES = new Set(['dialing', 'queued', 'ringing', 'in_progress']);
 function outcomeToLeadStatus(outcome, attempts = 0) {
   if (outcome === 'live_answer') return 'connected';
   if (outcome === 'voicemail') return 'voicemail';
@@ -26,6 +28,14 @@ function providerStatusToOutcome(status, answeredBy) {
   if (normalizedStatus === 'failed' || normalizedStatus === 'canceled') return 'failed';
   if (normalizedStatus === 'completed') return 'live_answer';
   return '';
+}
+
+function providerStatusIsLive(status, answeredBy) {
+  const normalizedStatus = String(status || '').toLowerCase();
+  const normalizedAnsweredBy = String(answeredBy || '').toLowerCase();
+  if (normalizedAnsweredBy.includes('machine')) return false;
+  if (normalizedAnsweredBy.includes('human')) return true;
+  return ['answered', 'in-progress', 'in_progress'].includes(normalizedStatus);
 }
 
 export class DialerEngine {
@@ -112,12 +122,13 @@ export class DialerEngine {
       const leads = fresh.leads
         .filter((lead) => lead.ownerId === campaign.ownerId)
         .filter((lead) => isCallableStatus(lead.status))
+        .filter((lead) => matchesCampaignTimeZone(lead, campaign))
         .filter((lead) => !activeLeadIds.has(lead.id))
         .filter((lead) => evaluateLeadForDial(lead, campaign, { dncNumbers }).allowed)
         .slice(0, openSlots);
 
       if (!leads.length && activeCalls.length === 0) {
-        const anyReady = fresh.leads.some((lead) => lead.ownerId === campaign.ownerId && isCallableStatus(lead.status));
+        const anyReady = fresh.leads.some((lead) => lead.ownerId === campaign.ownerId && isCallableStatus(lead.status) && matchesCampaignTimeZone(lead, campaign));
         if (!anyReady) {
           setCampaignStatus(campaign.id, 'complete');
           addEvent('campaign_complete', `Campaign ${campaign.name} completed`, { campaignId: campaign.id });
@@ -189,11 +200,13 @@ export class DialerEngine {
   async completeCall(call, outcome, raw = {}) {
     const completedAt = new Date().toISOString();
     const leadStatus = outcomeToLeadStatus(outcome, call.attempt);
+    const requiresDisposition = outcome === 'live_answer';
 
     const updatedCall = updateCall(call.id, {
       status: 'completed',
       completedAt,
       outcome,
+      requiresDisposition,
       raw
     });
 
@@ -229,7 +242,111 @@ export class DialerEngine {
       outcome
     });
 
+    if (outcome === 'live_answer') {
+      await this.pauseCampaignForLiveAnswer(updatedCall);
+    }
+
     return updatedCall;
+  }
+
+  async pauseCampaignForLiveAnswer(answeredCall) {
+    await this.cancelCompetingCalls(answeredCall);
+
+    const latest = getStore().campaigns.find((item) => item.id === answeredCall.campaignId);
+    if (latest && ['running', 'connected'].includes(latest.status)) {
+      setCampaignStatus(latest.id, 'paused');
+      addEvent('campaign_paused_for_disposition', `Campaign paused after live answer from ${answeredCall.leadName}`, {
+        campaignId: latest.id,
+        callId: answeredCall.id
+      });
+    }
+  }
+
+  async cancelCompetingCalls(answeredCall) {
+    const data = getStore();
+    const campaign = data.campaigns.find((item) => item.id === answeredCall.campaignId);
+    if (!campaign?.pauseOnLiveAnswer) return;
+
+    const competingCalls = data.calls.filter((call) => (
+      call.campaignId === answeredCall.campaignId
+      && call.id !== answeredCall.id
+      && CANCELABLE_STATUSES.has(call.status)
+    ));
+
+    for (const call of competingCalls) {
+      try {
+        if (typeof this.voiceProvider.cancelOutboundCall === 'function') {
+          await this.voiceProvider.cancelOutboundCall(call);
+        }
+      } catch (error) {
+        addEvent('call_cancel_failed', error.message, {
+          campaignId: call.campaignId,
+          callId: call.id
+        });
+      }
+
+      updateCall(call.id, {
+        status: 'canceled',
+        completedAt: new Date().toISOString(),
+        outcome: 'canceled_after_connect'
+      });
+      updateLead(call.leadId, {
+        status: 'retry',
+        lastOutcome: 'canceled_after_connect'
+      });
+      addEvent('call_canceled_after_connect', `${call.leadName} canceled after another live answer`, {
+        campaignId: call.campaignId,
+        callId: call.id
+      });
+    }
+  }
+
+  async applyDisposition(callId, input) {
+    const data = getStore();
+    const call = data.calls.find((item) => item.id === callId);
+    if (!call) throw new Error('Call not found');
+
+    const lead = data.leads.find((item) => item.id === call.leadId);
+    if (!lead) throw new Error('Lead not found');
+
+    const status = String(input.status || '').trim();
+    if (!status) throw new Error('Lead status is required');
+
+    const updatedCall = updateCall(call.id, {
+      requiresDisposition: false,
+      dispositionStatus: status,
+      dispositionNote: String(input.note || '').trim(),
+      dispositionAt: new Date().toISOString()
+    });
+
+    const updatedLead = updateLead(lead.id, {
+      status,
+      lastOutcome: call.outcome || lead.lastOutcome
+    });
+
+    if (config.leadSource === 'hubspot') {
+      try {
+        await updateHubSpotLead(updatedLead, {
+          status,
+          lastOutcome: updatedLead.lastOutcome,
+          attempts: updatedLead.attempts
+        });
+      } catch (error) {
+        addEvent('hubspot_disposition_failed', error.message, {
+          campaignId: call.campaignId,
+          callId: call.id,
+          leadId: lead.id
+        });
+      }
+    }
+
+    addEvent('call_disposition_saved', `${call.leadName} set to ${status}`, {
+      campaignId: call.campaignId,
+      callId: call.id,
+      leadId: lead.id
+    });
+
+    return { call: updatedCall, lead: updatedLead };
   }
 
   async completeProviderCall(providerCallId, providerStatus, answeredBy, raw = {}) {
@@ -246,6 +363,14 @@ export class DialerEngine {
         status: providerStatus || call.status,
         raw
       });
+      if (providerStatusIsLive(providerStatus, answeredBy)) {
+        const latestCall = getStore().calls.find((item) => item.id === call.id);
+        await this.cancelCompetingCalls(latestCall);
+        const latestCampaign = getStore().campaigns.find((item) => item.id === call.campaignId);
+        if (latestCampaign?.status === 'running') {
+          setCampaignStatus(latestCampaign.id, 'connected');
+        }
+      }
       return call;
     }
 
@@ -259,6 +384,7 @@ export class DialerEngine {
 
     const leads = data.leads
       .filter((lead) => lead.ownerId === campaign.ownerId)
+      .filter((lead) => matchesCampaignTimeZone(lead, campaign))
       .map((lead) => ({
         ...lead,
         dialCheck: evaluateLeadForDial(lead, campaign, {

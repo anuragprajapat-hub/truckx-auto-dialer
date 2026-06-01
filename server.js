@@ -5,6 +5,7 @@ import { URL } from 'node:url';
 import { config } from './src/config.js';
 import { normalizeUsPhone } from './src/compliance.js';
 import { dialerEngine } from './src/dialerEngine.js';
+import { buildAgentReports } from './src/reports.js';
 import { addDncNumber, addEvent, createCampaign, getStore, removeDncNumber, setCampaignStatus, updateLead } from './src/store.js';
 
 const publicDir = path.resolve(process.cwd(), 'public');
@@ -35,7 +36,7 @@ function sendXml(response, xml) {
 }
 
 function isProtectedPath(pathname) {
-  if (!config.appAuth.password) return false;
+  if (!config.appAuth.users.length) return false;
   if (pathname === '/api/health') return false;
   if (pathname.startsWith('/webhooks/')) return false;
   return true;
@@ -49,18 +50,22 @@ function unauthorized(response) {
   response.end('Authentication required');
 }
 
-function isAuthorized(request) {
+function authenticatedUser(request) {
+  if (!config.appAuth.users.length) {
+    return { username: 'local', role: 'admin', hubspotOwnerId: '' };
+  }
+
   const header = request.headers.authorization || '';
-  if (!header.startsWith('Basic ')) return false;
+  if (!header.startsWith('Basic ')) return null;
 
   try {
     const decoded = Buffer.from(header.slice('Basic '.length), 'base64').toString('utf8');
     const separatorIndex = decoded.indexOf(':');
     const username = decoded.slice(0, separatorIndex);
     const password = decoded.slice(separatorIndex + 1);
-    return username === config.appAuth.username && password === config.appAuth.password;
+    return config.appAuth.users.find((user) => user.username === username && user.password === password) || null;
   } catch {
-    return false;
+    return null;
   }
 }
 
@@ -86,9 +91,9 @@ function setupStatus() {
       {
         id: 'app_auth',
         label: 'App password',
-        ok: Boolean(config.appAuth.password),
-        value: config.appAuth.password ? 'Enabled' : 'Missing',
-        message: config.appAuth.password ? 'UI and API are password protected' : 'Set APP_PASSWORD before using real leads'
+        ok: Boolean(config.appAuth.users.length),
+        value: config.appAuth.users.length ? 'Enabled' : 'Missing',
+        message: config.appAuth.users.length ? 'UI and API are password protected' : 'Set APP_PASSWORD or APP_USERS before using real leads'
       },
       {
         id: 'voice_provider',
@@ -144,6 +149,50 @@ function setupStatus() {
       plivoMachine: `${publicUrl}/webhooks/plivo/machine`
     }
   };
+}
+
+function ownerIdsForUser(data, user) {
+  if (!user || user.role === 'admin') {
+    return new Set((data.owners || []).map((owner) => owner.id));
+  }
+
+  return new Set((data.owners || [])
+    .filter((owner) => (
+      String(owner.hubspotOwnerId || '') === String(user.hubspotOwnerId || '')
+      || String(owner.id || '') === String(user.ownerId || '')
+      || String(owner.email || '').toLowerCase() === String(user.email || '').toLowerCase()
+    ))
+    .map((owner) => owner.id));
+}
+
+function visibleState(data, user) {
+  const ownerIds = ownerIdsForUser(data, user);
+  const campaignIds = new Set((data.campaigns || [])
+    .filter((campaign) => ownerIds.has(campaign.ownerId))
+    .map((campaign) => campaign.id));
+
+  if (user?.role === 'admin') {
+    return data;
+  }
+
+  return {
+    ...data,
+    owners: data.owners.filter((owner) => ownerIds.has(owner.id)),
+    campaigns: data.campaigns.filter((campaign) => campaignIds.has(campaign.id)),
+    leads: data.leads.filter((lead) => ownerIds.has(lead.ownerId)),
+    calls: data.calls.filter((call) => ownerIds.has(call.ownerId) || campaignIds.has(call.campaignId)),
+    sessions: data.sessions.filter((session) => ownerIds.has(session.ownerId)),
+    events: data.events.filter((event) => !event.details?.campaignId || campaignIds.has(event.details.campaignId))
+  };
+}
+
+function assertCampaignAccess(campaignId, user) {
+  if (!campaignId || user?.role === 'admin') return;
+  const data = getStore();
+  const campaign = data.campaigns.find((item) => item.id === campaignId);
+  if (!campaign || !ownerIdsForUser(data, user).has(campaign.ownerId)) {
+    throw new Error('You do not have access to this campaign');
+  }
 }
 
 function bridgeDetails(url) {
@@ -231,9 +280,14 @@ async function handleApi(request, response, url) {
   }
 
   if (request.method === 'GET' && url.pathname === '/api/state') {
-    const data = getStore();
+    const data = visibleState(getStore(), request.user);
     sendJson(response, {
       appName: 'Truckx Auto Dialer',
+      currentUser: {
+        username: request.user?.username || 'local',
+        role: request.user?.role || 'admin',
+        hubspotOwnerId: request.user?.hubspotOwnerId || ''
+      },
       settings: {
         voiceProvider: config.voiceProvider,
         leadSource: config.leadSource,
@@ -245,6 +299,9 @@ async function handleApi(request, response, url) {
       owners: data.owners,
       campaigns: data.campaigns,
       leads: data.leads,
+      reports: {
+        agents: buildAgentReports(data)
+      },
       dncNumbers: data.dncNumbers || [],
       calls: data.calls.slice(0, 100),
       events: data.events.slice(0, 50)
@@ -298,6 +355,14 @@ async function handleApi(request, response, url) {
 
   if (request.method === 'POST' && url.pathname === '/api/campaigns') {
     const body = await parseBody(request);
+    if (request.user?.role === 'agent') {
+      const data = getStore();
+      const ownerIds = ownerIdsForUser(data, request.user);
+      if (!ownerIds.has(body.ownerId)) {
+        sendJson(response, { error: 'Agents can create campaigns only for their own HubSpot owner' }, 403);
+        return true;
+      }
+    }
     const campaign = createCampaign(body);
     sendJson(response, campaign, 201);
     return true;
@@ -305,6 +370,7 @@ async function handleApi(request, response, url) {
 
   const startCampaignId = campaignIdFromPath(url.pathname, 'start');
   if (request.method === 'POST' && startCampaignId) {
+    assertCampaignAccess(startCampaignId, request.user);
     const campaign = setCampaignStatus(startCampaignId, 'running');
     sendJson(response, campaign);
     return true;
@@ -312,6 +378,7 @@ async function handleApi(request, response, url) {
 
   const stopCampaignId = campaignIdFromPath(url.pathname, 'stop');
   if (request.method === 'POST' && stopCampaignId) {
+    assertCampaignAccess(stopCampaignId, request.user);
     const campaign = setCampaignStatus(stopCampaignId, 'stopped');
     sendJson(response, campaign);
     return true;
@@ -319,6 +386,7 @@ async function handleApi(request, response, url) {
 
   const syncCampaignId = campaignIdFromPath(url.pathname, 'sync-hubspot');
   if (request.method === 'POST' && syncCampaignId) {
+    assertCampaignAccess(syncCampaignId, request.user);
     const result = await dialerEngine.syncHubSpotLeadsForCampaign(syncCampaignId);
     sendJson(response, result);
     return true;
@@ -326,7 +394,24 @@ async function handleApi(request, response, url) {
 
   const snapshotMatch = url.pathname.match(/^\/api\/campaigns\/([^/]+)$/);
   if (request.method === 'GET' && snapshotMatch) {
+    assertCampaignAccess(snapshotMatch[1], request.user);
     sendJson(response, dialerEngine.campaignSnapshot(snapshotMatch[1]));
+    return true;
+  }
+
+  const dispositionMatch = url.pathname.match(/^\/api\/calls\/([^/]+)\/disposition$/);
+  if (request.method === 'POST' && dispositionMatch) {
+    const body = await parseBody(request);
+    const data = getStore();
+    const call = data.calls.find((item) => item.id === dispositionMatch[1]);
+    assertCampaignAccess(call?.campaignId, request.user);
+    sendJson(response, await dialerEngine.applyDisposition(dispositionMatch[1], body));
+    return true;
+  }
+
+  if (request.method === 'GET' && url.pathname === '/api/reports/agents') {
+    const data = visibleState(getStore(), request.user);
+    sendJson(response, { agents: buildAgentReports(data) });
     return true;
   }
 
@@ -422,7 +507,8 @@ const server = http.createServer(async (request, response) => {
   const url = new URL(request.url, `http://${request.headers.host}`);
 
   try {
-    if (isProtectedPath(url.pathname) && !isAuthorized(request)) {
+    request.user = authenticatedUser(request);
+    if (isProtectedPath(url.pathname) && !request.user) {
       unauthorized(response);
       return;
     }

@@ -1,4 +1,5 @@
 import { config } from './config.js';
+import { campaignTimeZoneTarget, leadTimeZoneLabel, matchesCampaignTimeZone } from './timeZones.js';
 
 function parseClock(value) {
   const [hours, minutes] = value.split(':').map(Number);
@@ -62,12 +63,16 @@ export function evaluateLeadForDial(lead, campaign, context = {}) {
     return { allowed: false, reason: `Lead status is not callable: ${lead.status || 'blank'}` };
   }
 
+  if (!matchesCampaignTimeZone(lead, campaign)) {
+    return { allowed: false, reason: `Not in ${campaignTimeZoneTarget(campaign)} campaign` };
+  }
+
   if ((lead.attempts || 0) >= config.compliance.maxAttemptsPerLead) {
     return { allowed: false, reason: 'Max attempt limit reached' };
   }
 
   const timeZone = lead.timeZone || 'America/New_York';
-  const timeZoneLabel = lead.timeZoneLabel || timeZone;
+  const timeZoneLabel = leadTimeZoneLabel(lead);
   const start = parseClock(campaign.callWindowStart || config.compliance.defaultCallWindowStart);
   const end = parseClock(campaign.callWindowEnd || config.compliance.defaultCallWindowEnd);
   const now = localClockMinutes(timeZone);

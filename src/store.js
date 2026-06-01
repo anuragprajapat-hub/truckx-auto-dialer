@@ -106,6 +106,7 @@ function seedStore() {
     ],
     campaigns: [],
     calls: [],
+    sessions: [],
     events: [],
     dncNumbers: []
   };
@@ -122,6 +123,12 @@ function read() {
   const data = JSON.parse(fs.readFileSync(storePath, 'utf8'));
   if (!Array.isArray(data.dncNumbers)) data.dncNumbers = [];
   if (!Array.isArray(data.events)) data.events = [];
+  if (!Array.isArray(data.sessions)) data.sessions = [];
+  for (const campaign of data.campaigns || []) {
+    if (!campaign.timeZoneTarget) campaign.timeZoneTarget = 'ALL';
+    if (typeof campaign.pauseOnLiveAnswer !== 'boolean') campaign.pauseOnLiveAnswer = true;
+    if (!campaign.dialMode) campaign.dialMode = 'predictive';
+  }
   return data;
 }
 
@@ -174,12 +181,16 @@ export function createCampaign(input) {
       maxParallelCalls: Number(input.maxParallelCalls || 2),
       agentPhone: input.agentPhone || owner.agentPhone,
       callerIdNumbers: Array.isArray(input.callerIdNumbers) ? input.callerIdNumbers : [],
+      timeZoneTarget: String(input.timeZoneTarget || 'ALL').toUpperCase(),
+      dialMode: input.dialMode || 'predictive',
+      pauseOnLiveAnswer: input.pauseOnLiveAnswer !== false,
       callWindowStart: input.callWindowStart || '09:00',
       callWindowEnd: input.callWindowEnd || '18:00',
       voicemailDrop: Boolean(input.voicemailDrop),
       createdAt: new Date().toISOString(),
       startedAt: '',
-      stoppedAt: ''
+      stoppedAt: '',
+      currentSessionId: ''
     };
 
     data.campaigns.unshift(campaign);
@@ -217,12 +228,33 @@ export function setCampaignStatus(campaignId, status) {
       throw new Error('Campaign not found');
     }
 
+    const now = new Date().toISOString();
+    const previousStatus = campaign.status;
     campaign.status = status;
-    if (status === 'running' && !campaign.startedAt) {
-      campaign.startedAt = new Date().toISOString();
+
+    if (status === 'running' && previousStatus !== 'running') {
+      if (!campaign.startedAt) campaign.startedAt = now;
+      campaign.stoppedAt = '';
+      const session = {
+        id: randomUUID(),
+        campaignId: campaign.id,
+        ownerId: campaign.ownerId,
+        startedAt: now,
+        endedAt: '',
+        endedReason: ''
+      };
+      data.sessions.unshift(session);
+      campaign.currentSessionId = session.id;
     }
-    if (status === 'stopped' || status === 'complete') {
-      campaign.stoppedAt = new Date().toISOString();
+
+    if (['stopped', 'complete', 'paused'].includes(status)) {
+      campaign.stoppedAt = now;
+      const session = data.sessions.find((item) => item.id === campaign.currentSessionId && !item.endedAt);
+      if (session) {
+        session.endedAt = now;
+        session.endedReason = status;
+      }
+      campaign.currentSessionId = '';
     }
     return campaign;
   });

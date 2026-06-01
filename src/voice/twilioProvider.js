@@ -51,6 +51,30 @@ export function createTwilioProvider() {
         callerIdNumber: callerIdNumber || config.callerIdNumber
       };
     },
+    async cancelOutboundCall(call) {
+      assertTwilioConfig();
+      if (!call.providerCallId) return { skipped: true };
+
+      const params = new URLSearchParams({
+        Status: call.status === 'in_progress' ? 'completed' : 'canceled'
+      });
+
+      const response = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${config.twilio.accountSid}/Calls/${encodeURIComponent(call.providerCallId)}.json`, {
+        method: 'POST',
+        headers: {
+          Authorization: authHeader(),
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: params
+      });
+
+      const body = await response.json();
+      if (!response.ok) {
+        throw new Error(body.message || `Twilio cancel failed with ${response.status}`);
+      }
+
+      return body;
+    },
     resolveOutcome() {
       return null;
     }

@@ -52,6 +52,25 @@ export function createPlivoProvider() {
         callerIdNumber: callerIdNumber || config.callerIdNumber
       };
     },
+    async cancelOutboundCall(call) {
+      assertPlivoConfig();
+      if (!call.providerCallId) return { skipped: true };
+
+      const response = await fetch(`https://api.plivo.com/v1/Account/${config.plivo.authId}/Call/${encodeURIComponent(call.providerCallId)}/`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: authHeader()
+        }
+      });
+
+      const text = await response.text();
+      const result = text ? JSON.parse(text) : {};
+      if (!response.ok) {
+        throw new Error(result.error || result.message || `Plivo cancel failed with ${response.status}`);
+      }
+
+      return result;
+    },
     resolveOutcome() {
       return null;
     }

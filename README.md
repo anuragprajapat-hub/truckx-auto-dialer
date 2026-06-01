@@ -5,11 +5,13 @@ This is a standalone autodialer prototype for a sales team calling US numbers. I
 ## What It Does Now
 
 - Creates owner-based campaigns.
-- Pulls sample leads by owner in mock mode.
-- Runs a multi-line dialer simulation.
+- Pulls contacts by HubSpot owner and pages through up to `HUBSPOT_SYNC_LIMIT` contacts.
+- Filters campaigns by HubSpot `TIME ZONE` values: `EST`, `CST`, `MST`, `PST`, or all zones.
+- Runs a configurable multi-line predictive dialer simulation.
 - Detects mock outcomes: live answer, voicemail, no answer, busy, failed.
+- Pauses a campaign after a live answer and shows an after-call lead status box.
 - Updates lead status in the local store.
-- Shows live campaign, queue, active calls, and call log in the browser.
+- Shows live campaign, queue, active calls, call log, and agent reports in the browser.
 - Includes starter adapters for Twilio and Plivo so real calling can be wired next.
 - Supports caller ID number pools through `CALLER_ID_NUMBERS`.
 - Includes setup checks for missing HubSpot/carrier credentials.
@@ -48,6 +50,20 @@ For local real-call testing, the voice provider must reach your webhook URLs. Th
 
 Set `APP_PASSWORD` before syncing real HubSpot contacts into a public deployment. Without it, the dashboard and API are public.
 
+For separate agent logins, set `APP_USERS` instead of only one global login:
+
+```text
+APP_USERS=admin:strong-password:admin,sooraj:agent-password:agent:840722698
+```
+
+Format:
+
+```text
+username:password:role:hubspot_owner_id
+```
+
+Admins can see all owners. Agents only see campaigns/leads for their HubSpot owner ID.
+
 Credential instructions are in [docs/GET_CREDENTIALS.md](docs/GET_CREDENTIALS.md).
 
 ## HubSpot Setup
@@ -73,12 +89,25 @@ HUBSPOT_PROP_TIME_ZONE=time_zone
 HUBSPOT_PROP_LEAD_STATUS=hs_lead_status
 ```
 
+Your HubSpot display label can be `TIME ZONE`; the app needs the internal name, which you showed as `time_zone`. Values can be `EST`, `CST`, `MST`, or `PST`.
+
+Campaign examples:
+
+```text
+SOORAJ PST -> owner Sooraj Kumar, zone PST
+SOORAJ EST -> owner Sooraj Kumar, zone EST
+SOORAJ ALL -> owner Sooraj Kumar, zone All zones
+```
+
+The app does not require you to manually edit every contact's timezone or lead status if those fields already exist in HubSpot. It reads the existing internal property values when you click **Sync**.
+
 Use the dashboard setup panel or these endpoints:
 
 ```text
 GET  /api/setup
 POST /api/hubspot/owners/sync
 POST /api/campaigns/:id/sync-hubspot
+GET  /api/reports/agents
 ```
 
 ## Important

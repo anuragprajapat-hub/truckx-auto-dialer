@@ -27,17 +27,45 @@ function listFromEnv(name) {
     .filter(Boolean);
 }
 
+function usersFromEnv() {
+  return listFromEnv('APP_USERS')
+    .map((item) => {
+      const [username, password, role = 'agent', hubspotOwnerId = ''] = item.split(':').map((part) => part.trim());
+      if (!username || !password) return null;
+      return {
+        username,
+        password,
+        role: role === 'admin' ? 'admin' : 'agent',
+        hubspotOwnerId
+      };
+    })
+    .filter(Boolean);
+}
+
 const callerIdNumbers = listFromEnv('CALLER_ID_NUMBERS');
 if (process.env.CALLER_ID_NUMBER && !callerIdNumbers.includes(process.env.CALLER_ID_NUMBER)) {
   callerIdNumbers.unshift(process.env.CALLER_ID_NUMBER);
 }
+
+const configuredUsers = usersFromEnv();
+const fallbackUsers = process.env.APP_PASSWORD
+  ? [
+      {
+        username: process.env.APP_USERNAME || 'admin',
+        password: process.env.APP_PASSWORD,
+        role: 'admin',
+        hubspotOwnerId: ''
+      }
+    ]
+  : [];
 
 export const config = {
   port: numberFromEnv('PORT', 4242),
   publicBaseUrl: process.env.PUBLIC_BASE_URL || process.env.RENDER_EXTERNAL_URL || 'http://localhost:4242',
   appAuth: {
     username: process.env.APP_USERNAME || 'admin',
-    password: process.env.APP_PASSWORD || ''
+    password: process.env.APP_PASSWORD || '',
+    users: configuredUsers.length ? configuredUsers : fallbackUsers
   },
   leadSource: process.env.LEAD_SOURCE || 'mock',
   voiceProvider: process.env.VOICE_PROVIDER || 'mock',
@@ -47,6 +75,7 @@ export const config = {
   voicemailAudioUrl: process.env.VOICEMAIL_AUDIO_URL || '',
   hubspot: {
     privateAppToken: process.env.HUBSPOT_PRIVATE_APP_TOKEN || '',
+    syncLimit: numberFromEnv('HUBSPOT_SYNC_LIMIT', 1000),
     properties: {
       consent: process.env.HUBSPOT_PROP_CONSENT || 'dialer_consent',
       doNotCall: process.env.HUBSPOT_PROP_DNC || 'do_not_call',

@@ -34,6 +34,20 @@ APP_USERNAME=admin
 APP_PASSWORD=choose-a-strong-password
 ```
 
+For multiple logins, use this instead:
+
+```text
+APP_USERS=admin:strong-password:admin,sooraj:agent-password:agent:840722698
+```
+
+Each login is:
+
+```text
+username:password:role:hubspot_owner_id
+```
+
+Use `admin` for an admin user. Use `agent` plus the HubSpot owner ID for an agent user. You can get the owner ID after clicking **Owners** in Truckx or from HubSpot owner settings/API.
+
 Recommended scopes:
 
 ```text
@@ -73,6 +87,26 @@ time_zone
 
 If the display label is similar but the internal name is different, put the real internal name into `HUBSPOT_PROP_LAST_OUTCOME` or `HUBSPOT_PROP_TIME_ZONE`.
 
+For your current HubSpot setup, use:
+
+```text
+HUBSPOT_PROP_TIME_ZONE=time_zone
+HUBSPOT_PROP_CONSENT=dialer_consent
+HUBSPOT_PROP_DNC=do_not_call
+HUBSPOT_PROP_LAST_OUTCOME=last_call_outcome
+```
+
+`TIME ZONE` values should be:
+
+```text
+EST
+CST
+MST
+PST
+```
+
+Truckx converts those to the correct US local call windows internally, but the dashboard shows the short labels.
+
 By default Truckx only dials leads with these statuses:
 
 ```text
@@ -80,6 +114,14 @@ CALLABLE_LEAD_STATUSES=new,retry,no_answer
 ```
 
 Statuses like `Won`, `REJECTED`, `VOICEMAIL`, and blank statuses are blocked unless you intentionally add them to `CALLABLE_LEAD_STATUSES`.
+
+If you want Truckx to sync more than 100 contacts under one owner, set:
+
+```text
+HUBSPOT_SYNC_LIMIT=1000
+```
+
+The app pages through HubSpot contacts up to that limit.
 
 ## 2. Voice Provider
 

@@ -19,6 +19,8 @@ The app code can be owned by you, but phone infrastructure is not free.
 - Max attempt limits.
 - Retry spacing.
 - Caller ID number controls.
+- Predictive dialer abandonment controls.
+- Recordkeeping for dialed, skipped, connected, canceled, and abandoned calls.
 - Call recording disclosure handling where required.
 - Audit log for every skipped/dialed lead.
 
@@ -30,5 +32,26 @@ The app code can be owned by you, but phone infrastructure is not free.
 - Max 3 attempts per lead per campaign.
 - Never call DNC/opted-out contacts.
 - Write every outcome back to HubSpot.
+
+## Predictive Dialer Guardrails
+
+Truckx has a conservative first version of predictive behavior:
+
+- The campaign can dial multiple numbers at once through `Lines`.
+- If voicemail is detected, the lead is marked voicemail and the dialer moves on.
+- If a live answer happens, the campaign pauses and any competing active calls are canceled/skipped.
+- The agent saves the after-call lead status before pressing **Start** again.
+
+Before using real US outbound predictive dialing, review:
+
+- FTC Telemarketing Sales Rule call abandonment rules and safe harbor.
+- FCC/TCPA consent rules for autodialed or prerecorded telemarketing calls/texts.
+- National and internal DNC requirements.
+- State mini-TCPA and calling-window laws.
+
+Useful official references:
+
+- FTC TSR guide: https://www.ftc.gov/business-guidance/resources/complying-telemarketing-sales-rule
+- FCC TCPA one-to-one consent FAQ: https://docs.fcc.gov/public/attachments/DOC-408396A1.pdf
 
 This is not legal advice. Have counsel review TCPA, TSR, state mini-TCPA laws, DNC, consent, and recording rules before live US outbound campaigns.

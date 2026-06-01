@@ -18,6 +18,10 @@
           <label>Campaigns</label>
         </div>
         <div>
+          <span id="statDials">0</span>
+          <label>Dials</label>
+        </div>
+        <div>
           <span id="statActive">0</span>
           <label>Active</label>
         </div>
@@ -28,6 +32,10 @@
         <div>
           <span id="statVm">0</span>
           <label>VM</label>
+        </div>
+        <div>
+          <span id="statHours">0h</span>
+          <label>Dialer time</label>
         </div>
       </div>
     </header>
@@ -50,6 +58,22 @@
           <label>
             Name
             <input id="campaignName" name="name" placeholder="Owner outreach" required>
+          </label>
+          <label>
+            Zone
+            <select id="timeZoneTarget" name="timeZoneTarget">
+              <option value="ALL">All zones</option>
+              <option value="EST">EST</option>
+              <option value="CST">CST</option>
+              <option value="MST">MST</option>
+              <option value="PST">PST</option>
+            </select>
+          </label>
+          <label>
+            Mode
+            <select id="dialMode" name="dialMode">
+              <option value="predictive">Predictive</option>
+            </select>
           </label>
           <label>
             Lines
@@ -88,6 +112,27 @@
 
         <div id="notice" class="notice" hidden></div>
 
+        <section id="dispositionPanel" class="disposition-panel" hidden>
+          <div>
+            <h3>After-call status</h3>
+            <p id="dispositionLead">No completed call selected</p>
+          </div>
+          <form id="dispositionForm">
+            <select id="dispositionStatus" name="status" required>
+              <option value="">Select lead status</option>
+              <option value="follow_up">Follow up</option>
+              <option value="qualified">Qualified</option>
+              <option value="not_interested">Not interested</option>
+              <option value="bad_timing">Bad timing</option>
+              <option value="do_not_call">Do not call</option>
+              <option value="connected">Connected</option>
+              <option value="new">New</option>
+            </select>
+            <input id="dispositionNote" name="note" placeholder="Note">
+            <button class="primary-button" type="submit">Save</button>
+          </form>
+        </section>
+
         <div class="table-wrap">
           <table>
             <thead>
@@ -111,6 +156,13 @@
             <h2>Setup</h2>
           </div>
           <div id="setupStatus" class="setup-list"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-title">
+            <h2>Admin Report</h2>
+          </div>
+          <div id="agentReports" class="report-list"></div>
         </section>
 
         <section class="panel">
