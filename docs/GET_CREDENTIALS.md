@@ -27,6 +27,13 @@ LEAD_SOURCE=hubspot
 HUBSPOT_PRIVATE_APP_TOKEN=pat-...
 ```
 
+Also set app login protection before using real leads:
+
+```text
+APP_USERNAME=admin
+APP_PASSWORD=choose-a-strong-password
+```
+
 Recommended scopes:
 
 ```text

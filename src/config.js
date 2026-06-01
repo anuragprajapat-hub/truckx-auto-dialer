@@ -35,6 +35,10 @@ if (process.env.CALLER_ID_NUMBER && !callerIdNumbers.includes(process.env.CALLER
 export const config = {
   port: numberFromEnv('PORT', 4242),
   publicBaseUrl: process.env.PUBLIC_BASE_URL || process.env.RENDER_EXTERNAL_URL || 'http://localhost:4242',
+  appAuth: {
+    username: process.env.APP_USERNAME || 'admin',
+    password: process.env.APP_PASSWORD || ''
+  },
   leadSource: process.env.LEAD_SOURCE || 'mock',
   voiceProvider: process.env.VOICE_PROVIDER || 'mock',
   callerIdNumber: callerIdNumbers[0] || '+15551234567',

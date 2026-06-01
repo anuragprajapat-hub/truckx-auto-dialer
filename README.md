@@ -40,9 +40,13 @@ CALLER_ID_NUMBER=+1...
 CALLER_ID_NUMBERS=+1...,+1...
 DEFAULT_AGENT_PHONE=+1...
 PUBLIC_BASE_URL=https://your-public-domain.example
+APP_USERNAME=admin
+APP_PASSWORD=choose-a-strong-password
 ```
 
 For local real-call testing, the voice provider must reach your webhook URLs. That means `PUBLIC_BASE_URL` needs a public HTTPS URL, not plain localhost.
+
+Set `APP_PASSWORD` before syncing real HubSpot contacts into a public deployment. Without it, the dashboard and API are public.
 
 Credential instructions are in [docs/GET_CREDENTIALS.md](docs/GET_CREDENTIALS.md).
 

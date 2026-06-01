@@ -34,6 +34,36 @@ function sendXml(response, xml) {
   response.end(xml);
 }
 
+function isProtectedPath(pathname) {
+  if (!config.appAuth.password) return false;
+  if (pathname === '/api/health') return false;
+  if (pathname.startsWith('/webhooks/')) return false;
+  return true;
+}
+
+function unauthorized(response) {
+  response.writeHead(401, {
+    'Content-Type': 'text/plain; charset=utf-8',
+    'WWW-Authenticate': 'Basic realm="Truckx Auto Dialer"'
+  });
+  response.end('Authentication required');
+}
+
+function isAuthorized(request) {
+  const header = request.headers.authorization || '';
+  if (!header.startsWith('Basic ')) return false;
+
+  try {
+    const decoded = Buffer.from(header.slice('Basic '.length), 'base64').toString('utf8');
+    const separatorIndex = decoded.indexOf(':');
+    const username = decoded.slice(0, separatorIndex);
+    const password = decoded.slice(separatorIndex + 1);
+    return username === config.appAuth.username && password === config.appAuth.password;
+  } catch {
+    return false;
+  }
+}
+
 function escapeXml(value) {
   return String(value || '')
     .replaceAll('&', '&amp;')
@@ -53,6 +83,13 @@ function setupStatus() {
   return {
     appName: 'Truckx Auto Dialer',
     checks: [
+      {
+        id: 'app_auth',
+        label: 'App password',
+        ok: Boolean(config.appAuth.password),
+        value: config.appAuth.password ? 'Enabled' : 'Missing',
+        message: config.appAuth.password ? 'UI and API are password protected' : 'Set APP_PASSWORD before using real leads'
+      },
       {
         id: 'voice_provider',
         label: 'Voice provider',
@@ -382,6 +419,11 @@ const server = http.createServer(async (request, response) => {
   const url = new URL(request.url, `http://${request.headers.host}`);
 
   try {
+    if (isProtectedPath(url.pathname) && !isAuthorized(request)) {
+      unauthorized(response);
+      return;
+    }
+
     if (await handleApi(request, response, url)) return;
     if (await handleWebhooks(request, response, url)) return;
     if (request.method === 'GET' && serveStatic(request, response, url)) return;

@@ -10,6 +10,8 @@ services:
         value: 24
       - key: LEAD_SOURCE
         value: hubspot
+      - key: APP_USERNAME
+        value: admin
       - key: VOICE_PROVIDER
         value: mock
       - key: DEFAULT_CALL_WINDOW_START
