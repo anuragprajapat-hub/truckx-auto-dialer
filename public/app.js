@@ -14,6 +14,7 @@ const elements = {
   campaignList: document.querySelector('#campaignList'),
   activeCampaignName: document.querySelector('#activeCampaignName'),
   activeCampaignMeta: document.querySelector('#activeCampaignMeta'),
+  notice: document.querySelector('#notice'),
   leadRows: document.querySelector('#leadRows'),
   activeCalls: document.querySelector('#activeCalls'),
   callLog: document.querySelector('#callLog'),
@@ -57,6 +58,19 @@ async function api(path, options = {}) {
 function statusPill(value, extraClass = '') {
   const clean = String(value || 'unknown');
   return `<span class="pill ${escapeHtml(clean)} ${extraClass}">${escapeHtml(clean.replaceAll('_', ' '))}</span>`;
+}
+
+function setNotice(message, type = 'info') {
+  if (!message) {
+    elements.notice.hidden = true;
+    elements.notice.textContent = '';
+    elements.notice.className = 'notice';
+    return;
+  }
+
+  elements.notice.hidden = false;
+  elements.notice.textContent = message;
+  elements.notice.className = `notice ${type}`;
 }
 
 function selectedCampaign() {
@@ -303,8 +317,13 @@ elements.campaignForm.addEventListener('submit', async (event) => {
 elements.refreshButton.addEventListener('click', loadState);
 
 elements.syncOwnersButton.addEventListener('click', async () => {
-  await api('/api/hubspot/owners/sync', { method: 'POST' });
-  await loadState();
+  try {
+    const result = await api('/api/hubspot/owners/sync', { method: 'POST' });
+    setNotice(`Synced ${result.count || 0} HubSpot owner(s).`, 'success');
+    await loadState();
+  } catch (error) {
+    setNotice(`Owner sync failed: ${error.message}`, 'error');
+  }
 });
 
 elements.dncForm.addEventListener('submit', async (event) => {
@@ -323,22 +342,43 @@ elements.dncForm.addEventListener('submit', async (event) => {
 elements.startButton.addEventListener('click', async () => {
   const campaign = selectedCampaign();
   if (!campaign) return;
-  await api(`/api/campaigns/${campaign.id}/start`, { method: 'POST' });
-  await loadState();
+  try {
+    await api(`/api/campaigns/${campaign.id}/start`, { method: 'POST' });
+    setNotice('Campaign started.', 'success');
+    await loadState();
+  } catch (error) {
+    setNotice(`Start failed: ${error.message}`, 'error');
+  }
 });
 
 elements.stopButton.addEventListener('click', async () => {
   const campaign = selectedCampaign();
   if (!campaign) return;
-  await api(`/api/campaigns/${campaign.id}/stop`, { method: 'POST' });
-  await loadState();
+  try {
+    await api(`/api/campaigns/${campaign.id}/stop`, { method: 'POST' });
+    setNotice('Campaign stopped.', 'success');
+    await loadState();
+  } catch (error) {
+    setNotice(`Stop failed: ${error.message}`, 'error');
+  }
 });
 
 elements.syncHubSpotButton.addEventListener('click', async () => {
   const campaign = selectedCampaign();
   if (!campaign) return;
-  await api(`/api/campaigns/${campaign.id}/sync-hubspot`, { method: 'POST' });
-  await loadState();
+  try {
+    const result = await api(`/api/campaigns/${campaign.id}/sync-hubspot`, { method: 'POST' });
+    const count = result.count || 0;
+    setNotice(
+      count
+        ? `Synced ${count} HubSpot contact(s) for this owner.`
+        : 'Synced HubSpot, but found 0 contacts for this owner. Check that contacts have this HubSpot owner.',
+      count ? 'success' : 'info'
+    );
+    await loadState();
+  } catch (error) {
+    setNotice(`HubSpot sync failed: ${error.message}`, 'error');
+  }
 });
 
 await loadState();

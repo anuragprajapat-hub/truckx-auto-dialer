@@ -223,6 +223,28 @@ select {
   justify-content: flex-end;
 }
 
+.notice {
+  border: 1px solid #f4d49b;
+  background: var(--amber-soft);
+  border-radius: 8px;
+  color: var(--amber);
+  font-size: 13px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+}
+
+.notice.error {
+  background: var(--rose-soft);
+  border-color: #efb5bf;
+  color: var(--rose);
+}
+
+.notice.success {
+  background: var(--teal-soft);
+  border-color: #a8d8cf;
+  color: var(--teal);
+}
+
 .table-wrap {
   overflow: auto;
   border: 1px solid var(--line);
