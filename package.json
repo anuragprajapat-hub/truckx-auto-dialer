@@ -1,0 +1,14 @@
+{
+  "name": "truckx-auto-dialer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Standalone Truckx Auto Dialer for HubSpot-connected outbound sales calling.",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

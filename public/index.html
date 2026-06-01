@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Truckx Auto Dialer</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <h1>Truckx Auto Dialer</h1>
+        <p id="systemLine">Loading system status...</p>
+      </div>
+      <div class="status-strip">
+        <div>
+          <span id="statCampaigns">0</span>
+          <label>Campaigns</label>
+        </div>
+        <div>
+          <span id="statActive">0</span>
+          <label>Active</label>
+        </div>
+        <div>
+          <span id="statConnected">0</span>
+          <label>Connected</label>
+        </div>
+        <div>
+          <span id="statVm">0</span>
+          <label>VM</label>
+        </div>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="panel setup-panel">
+        <div class="panel-title">
+          <h2>Campaign</h2>
+          <div class="button-row">
+            <button id="syncOwnersButton" type="button" title="Sync HubSpot owners">Owners</button>
+            <button id="refreshButton" class="icon-button" type="button" title="Refresh">Refresh</button>
+          </div>
+        </div>
+
+        <form id="campaignForm" class="form-grid">
+          <label>
+            Owner
+            <select id="ownerSelect" name="ownerId" required></select>
+          </label>
+          <label>
+            Name
+            <input id="campaignName" name="name" placeholder="Owner outreach" required>
+          </label>
+          <label>
+            Lines
+            <input id="maxParallelCalls" name="maxParallelCalls" type="number" min="1" max="10" value="2">
+          </label>
+          <label>
+            Agent phone
+            <input id="agentPhone" name="agentPhone" placeholder="+15557654321">
+          </label>
+          <label>
+            Start
+            <input id="callWindowStart" name="callWindowStart" type="time" value="09:00">
+          </label>
+          <label>
+            End
+            <input id="callWindowEnd" name="callWindowEnd" type="time" value="18:00">
+          </label>
+          <button class="primary-button" type="submit">Create</button>
+        </form>
+
+        <div class="campaign-list" id="campaignList"></div>
+      </section>
+
+      <section class="panel work-panel">
+        <div class="panel-title">
+          <div>
+            <h2 id="activeCampaignName">Queue</h2>
+            <p id="activeCampaignMeta">No campaign selected</p>
+          </div>
+          <div class="button-row">
+            <button id="syncHubSpotButton" title="Sync HubSpot leads">Sync</button>
+            <button id="startButton" class="success-button" title="Start selected campaign">Start</button>
+            <button id="stopButton" class="danger-button" title="Stop selected campaign">Stop</button>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Lead</th>
+                <th>Phone</th>
+                <th>Zone</th>
+                <th>Status</th>
+                <th>Attempts</th>
+                <th>Dial Check</th>
+              </tr>
+            </thead>
+            <tbody id="leadRows"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <aside class="side-stack">
+        <section class="panel">
+          <div class="panel-title">
+            <h2>Setup</h2>
+          </div>
+          <div id="setupStatus" class="setup-list"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-title">
+            <h2>DNC</h2>
+          </div>
+          <form id="dncForm" class="compact-form">
+            <input id="dncPhone" name="phone" placeholder="+15551234567" required>
+            <input id="dncReason" name="reason" placeholder="Reason">
+            <button type="submit">Add</button>
+          </form>
+          <div id="dncList" class="dnc-list"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-title">
+            <h2>Live Calls</h2>
+          </div>
+          <div id="activeCalls" class="call-stack"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-title">
+            <h2>Call Log</h2>
+          </div>
+          <div id="callLog" class="log-list"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-title">
+            <h2>Events</h2>
+          </div>
+          <div id="eventLog" class="event-list"></div>
+        </section>
+      </aside>
+    </main>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>
