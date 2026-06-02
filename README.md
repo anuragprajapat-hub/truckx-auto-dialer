@@ -103,7 +103,7 @@ For local Chrome testing:
 4. Select the repo's `extension` folder.
 5. Paste the invite setup token in the extension popup.
 
-The extension currently handles invite activation and agent connection. The next extension step is to add a HubSpot contact-page dial button and package it for Chrome Web Store.
+Each agent needs to load the unpacked extension once on their own Chrome profile during local testing. The extension opens `/agent/`, which is an agent-only dialer screen backed by the invite token. The next extension step is to add a HubSpot contact-page dial button and package it for Chrome Web Store.
 
 ## Logo Options
 

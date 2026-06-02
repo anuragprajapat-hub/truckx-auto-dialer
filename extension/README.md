@@ -11,12 +11,14 @@ This is the starter Chrome extension for TruckX agents.
 5. Open the extension popup.
 6. Paste the setup token from the TruckX invite link.
 
+During local testing, each agent needs to load the unpacked extension once on their own Chrome profile. After the extension is packaged or published, agents install it normally instead of choosing the repo folder.
+
 ## Current Features
 
 - Accepts a TruckX invitation token.
 - Stores the agent API token in Chrome local storage.
 - Checks the agent session against the TruckX backend.
-- Opens the TruckX web dialer.
+- Opens the agent-only TruckX web dialer at `/agent/`.
 - Loads a placeholder content script on HubSpot pages.
 
 ## Next Features

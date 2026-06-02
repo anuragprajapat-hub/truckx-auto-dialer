@@ -106,8 +106,10 @@ activateButton.addEventListener('click', async () => {
 });
 
 openAppButton.addEventListener('click', async () => {
-  const { apiBaseUrl } = await storageGet(['apiBaseUrl']);
-  chrome.tabs.create({ url: cleanBaseUrl(apiBaseUrl || apiBaseUrlInput.value) });
+  const { apiBaseUrl, authToken } = await storageGet(['apiBaseUrl', 'authToken']);
+  const baseUrl = cleanBaseUrl(apiBaseUrl || apiBaseUrlInput.value);
+  const tokenParam = authToken ? `?token=${encodeURIComponent(authToken)}` : '';
+  chrome.tabs.create({ url: `${baseUrl}/agent/${tokenParam}` });
 });
 
 disconnectButton.addEventListener('click', async () => {

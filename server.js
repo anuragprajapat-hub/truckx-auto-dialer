@@ -55,6 +55,8 @@ function isProtectedPath(pathname) {
   if (pathname === '/api/health') return false;
   if (pathname.startsWith('/api/invites/')) return false;
   if (pathname.startsWith('/extension/')) return false;
+  if (pathname === '/agent' || pathname.startsWith('/agent/')) return false;
+  if (pathname.startsWith('/assets/')) return false;
   if (pathname.startsWith('/webhooks/')) return false;
   return true;
 }
@@ -235,6 +237,21 @@ function assertCampaignAccess(campaignId, user) {
   }
 }
 
+function assertLeadAccess(leadId, user) {
+  if (!leadId || user?.role === 'admin') return;
+  const data = getStore();
+  const lead = data.leads.find((item) => item.id === leadId);
+  if (!lead || !ownerIdsForUser(data, user).has(lead.ownerId)) {
+    throw new Error('You do not have access to this lead');
+  }
+}
+
+function requireAdmin(request, response) {
+  if (request.user?.role === 'admin') return false;
+  sendJson(response, { error: 'Admin access required' }, 403);
+  return true;
+}
+
 function safeAgents(agents = []) {
   return agents.map(({ apiToken, ...agent }) => agent);
 }
@@ -332,7 +349,10 @@ async function handleApi(request, response, url) {
       currentUser: {
         username: request.user?.username || 'local',
         role: request.user?.role || 'admin',
-        hubspotOwnerId: request.user?.hubspotOwnerId || ''
+        hubspotOwnerId: request.user?.hubspotOwnerId || '',
+        ownerId: request.user?.ownerId || '',
+        agentId: request.user?.agentId || '',
+        email: request.user?.email || ''
       },
       settings: {
         voiceProvider: config.voiceProvider,
@@ -397,21 +417,20 @@ async function handleApi(request, response, url) {
   }
 
   if (request.method === 'GET' && url.pathname === '/api/setup') {
+    if (requireAdmin(request, response)) return true;
     sendJson(response, setupStatus());
     return true;
   }
 
   if (request.method === 'POST' && url.pathname === '/api/hubspot/owners/sync') {
+    if (requireAdmin(request, response)) return true;
     const result = await dialerEngine.syncHubSpotOwners();
     sendJson(response, result);
     return true;
   }
 
   if (request.method === 'POST' && url.pathname === '/api/admin/agents/invite') {
-    if (request.user?.role !== 'admin') {
-      sendJson(response, { error: 'Admin access required' }, 403);
-      return true;
-    }
+    if (requireAdmin(request, response)) return true;
 
     const body = await parseBody(request);
     const result = createAgentInvite(body, config.publicBaseUrl);
@@ -456,12 +475,14 @@ async function handleApi(request, response, url) {
   }
 
   if (request.method === 'GET' && url.pathname === '/api/dnc') {
+    if (requireAdmin(request, response)) return true;
     const data = getStore();
     sendJson(response, { dncNumbers: data.dncNumbers || [] });
     return true;
   }
 
   if (request.method === 'POST' && url.pathname === '/api/dnc') {
+    if (requireAdmin(request, response)) return true;
     const body = await parseBody(request);
     const phone = normalizeUsPhone(body.phone);
     if (!phone) {
@@ -478,6 +499,7 @@ async function handleApi(request, response, url) {
   }
 
   if (request.method === 'POST' && url.pathname === '/api/dnc/remove') {
+    if (requireAdmin(request, response)) return true;
     const body = await parseBody(request);
     const phone = normalizeUsPhone(body.phone);
     if (!phone) {
@@ -553,6 +575,7 @@ async function handleApi(request, response, url) {
   const leadStatusMatch = url.pathname.match(/^\/api\/leads\/([^/]+)\/status$/);
   if (request.method === 'POST' && leadStatusMatch) {
     const body = await parseBody(request);
+    assertLeadAccess(leadStatusMatch[1], request.user);
     const lead = updateLead(leadStatusMatch[1], body);
     sendJson(response, lead);
     return true;
@@ -645,6 +668,12 @@ const server = http.createServer(async (request, response) => {
     request.user = authenticatedUser(request);
     if (isProtectedPath(url.pathname) && !request.user) {
       unauthorized(response);
+      return;
+    }
+
+    if (request.method === 'GET' && url.pathname === '/agent') {
+      response.writeHead(302, { Location: `/agent/${url.search || ''}` });
+      response.end();
       return;
     }
 

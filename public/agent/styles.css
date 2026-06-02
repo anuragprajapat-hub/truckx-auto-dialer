@@ -1,0 +1,395 @@
+:root {
+  --bg: #f5f8fb;
+  --panel: #ffffff;
+  --text: #121821;
+  --muted: #607083;
+  --line: #d8e2ea;
+  --blue: #0879bd;
+  --blue-soft: #e5f7fc;
+  --amber: #9a6500;
+  --amber-soft: #fff2d8;
+  --rose: #b5384a;
+  --rose-soft: #ffe6eb;
+  --shadow: 0 14px 35px rgba(17, 30, 44, 0.08);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  margin: 0;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+button {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--text);
+  cursor: pointer;
+  min-height: 40px;
+  padding: 9px 12px;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+input,
+select {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--text);
+  min-height: 40px;
+  padding: 9px 10px;
+  width: 100%;
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-size: 22px;
+}
+
+h2 {
+  font-size: 15px;
+}
+
+p,
+label,
+span {
+  color: var(--muted);
+}
+
+label {
+  display: grid;
+  gap: 5px;
+  font-size: 12px;
+}
+
+.setup-view {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 24px;
+}
+
+.setup-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 14px;
+  max-width: 420px;
+  padding: 24px;
+  width: 100%;
+}
+
+.setup-card img {
+  width: 220px;
+}
+
+.setup-card button,
+.success-button {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.danger-button {
+  background: var(--rose-soft);
+  border-color: #efb5bf;
+  color: var(--rose);
+  font-weight: 700;
+}
+
+.agent-shell {
+  display: grid;
+  gap: 18px;
+  min-height: 100vh;
+  padding: 18px;
+}
+
+.topbar {
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  display: flex;
+  justify-content: space-between;
+  padding: 14px 18px;
+}
+
+.topbar img {
+  width: 180px;
+}
+
+.agent-lockup {
+  display: grid;
+  gap: 3px;
+  justify-items: end;
+}
+
+.agent-lockup strong {
+  color: var(--text);
+}
+
+.stat-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.stat-grid div,
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+}
+
+.stat-grid div {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+}
+
+.stat-grid span {
+  color: var(--text);
+  font-size: 24px;
+  font-weight: 750;
+}
+
+.stat-grid label {
+  color: var(--muted);
+}
+
+.notice {
+  background: var(--blue-soft);
+  border: 1px solid #a8dced;
+  border-radius: 8px;
+  color: var(--blue);
+  padding: 11px 13px;
+}
+
+.notice.error {
+  background: var(--rose-soft);
+  border-color: #efb5bf;
+  color: var(--rose);
+}
+
+.workspace {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) 340px;
+}
+
+.panel {
+  min-width: 0;
+  padding: 16px;
+}
+
+.panel-heading {
+  align-items: flex-start;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.panel-heading p {
+  font-size: 13px;
+  margin-top: 5px;
+}
+
+.control-grid {
+  align-items: end;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(220px, 1fr) auto auto auto;
+  margin-bottom: 14px;
+}
+
+.disposition-panel {
+  align-items: center;
+  background: #f8fbfd;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(180px, 1fr) minmax(260px, 1.4fr);
+  margin-bottom: 14px;
+  padding: 12px;
+}
+
+.disposition-panel form {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(140px, 1fr) minmax(120px, 1fr) auto;
+}
+
+.disposition-panel form button {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.table-wrap {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: auto;
+}
+
+table {
+  border-collapse: collapse;
+  min-width: 760px;
+  width: 100%;
+}
+
+th,
+td {
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+  padding: 11px 12px;
+  text-align: left;
+  vertical-align: top;
+}
+
+th {
+  background: #eef5f8;
+  color: #4c5e6f;
+  font-size: 12px;
+}
+
+tr:last-child td {
+  border-bottom: 0;
+}
+
+.lead-cell {
+  display: grid;
+  gap: 3px;
+}
+
+.lead-cell strong {
+  color: var(--text);
+}
+
+.pill {
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  display: inline-flex;
+  font-size: 12px;
+  justify-content: center;
+  padding: 4px 8px;
+  white-space: nowrap;
+}
+
+.pill.running,
+.pill.connected,
+.pill.allowed,
+.pill.ready,
+.pill.active {
+  background: var(--blue-soft);
+  border-color: #a8dced;
+  color: var(--blue);
+}
+
+.pill.paused,
+.pill.voicemail,
+.pill.no_answer,
+.pill.retry,
+.pill.pending {
+  background: var(--amber-soft);
+  border-color: #f4d49b;
+  color: var(--amber);
+}
+
+.pill.stopped,
+.pill.blocked,
+.pill.failed,
+.pill.do_not_call,
+.pill.canceled,
+.pill.missing {
+  background: var(--rose-soft);
+  border-color: #efb5bf;
+  color: var(--rose);
+}
+
+.side-stack,
+.settings-list,
+.card-list {
+  display: grid;
+  gap: 10px;
+}
+
+.settings-item,
+.call-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 5px;
+  padding: 10px;
+}
+
+.settings-item strong,
+.call-card strong {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.settings-item span,
+.call-card span,
+.empty {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+@media (max-width: 1020px) {
+  .workspace,
+  .control-grid,
+  .disposition-panel,
+  .disposition-panel form {
+    grid-template-columns: 1fr;
+  }
+
+  .stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .agent-shell {
+    padding: 10px;
+  }
+
+  .topbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .agent-lockup {
+    justify-items: start;
+  }
+}

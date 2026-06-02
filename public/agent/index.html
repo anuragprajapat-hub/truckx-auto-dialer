@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>TruckX Agent Dialer</title>
+    <link rel="icon" href="/assets/truckx-mark.svg">
+    <link rel="stylesheet" href="/agent/styles.css">
+  </head>
+  <body>
+    <main id="setupView" class="setup-view">
+      <section class="setup-card">
+        <img src="/assets/truckx-logo.svg" alt="TruckX Auto Dialer">
+        <label>
+          Setup token
+          <input id="manualToken" autocomplete="off" placeholder="Paste token">
+        </label>
+        <button id="manualConnectButton" type="button">Connect</button>
+        <p id="setupMessage"></p>
+      </section>
+    </main>
+
+    <main id="agentView" class="agent-shell" hidden>
+      <header class="topbar">
+        <img src="/assets/truckx-logo.svg" alt="TruckX Auto Dialer">
+        <div class="agent-lockup">
+          <strong id="agentName">Agent</strong>
+          <span id="agentEmail"></span>
+        </div>
+      </header>
+
+      <section class="stat-grid">
+        <div>
+          <span id="statCalls">0</span>
+          <label>Total calls</label>
+        </div>
+        <div>
+          <span id="statConnected">0</span>
+          <label>Connected</label>
+        </div>
+        <div>
+          <span id="statVm">0</span>
+          <label>VM</label>
+        </div>
+        <div>
+          <span id="statActive">0</span>
+          <label>Active</label>
+        </div>
+        <div>
+          <span id="statTime">0m</span>
+          <label>Dialer time</label>
+        </div>
+      </section>
+
+      <section id="notice" class="notice" hidden></section>
+
+      <section class="workspace">
+        <section class="panel dialer-panel">
+          <div class="panel-heading">
+            <div>
+              <h1>Dialer</h1>
+              <p id="campaignMeta">No PowerList selected</p>
+            </div>
+            <span id="campaignStatus" class="pill">idle</span>
+          </div>
+
+          <div class="control-grid">
+            <label>
+              PowerList
+              <select id="campaignSelect"></select>
+            </label>
+            <button id="syncButton" type="button">Sync HubSpot</button>
+            <button id="startButton" class="success-button" type="button">Start</button>
+            <button id="stopButton" class="danger-button" type="button">Stop</button>
+          </div>
+
+          <section id="dispositionPanel" class="disposition-panel" hidden>
+            <div>
+              <h2>After-call status</h2>
+              <p id="dispositionLead"></p>
+            </div>
+            <form id="dispositionForm">
+              <select id="dispositionStatus" required>
+                <option value="">Select status</option>
+                <option value="follow_up">Follow up</option>
+                <option value="qualified">Qualified</option>
+                <option value="not_interested">Not interested</option>
+                <option value="bad_timing">Bad timing</option>
+                <option value="do_not_call">Do not call</option>
+                <option value="connected">Connected</option>
+                <option value="new">New</option>
+              </select>
+              <input id="dispositionNote" placeholder="Note">
+              <button type="submit">Save</button>
+            </form>
+          </section>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Lead</th>
+                  <th>Phone</th>
+                  <th>Zone</th>
+                  <th>Status</th>
+                  <th>Attempts</th>
+                  <th>Dial Check</th>
+                </tr>
+              </thead>
+              <tbody id="leadRows"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <aside class="side-stack">
+          <section class="panel">
+            <div class="panel-heading">
+              <h2>Settings</h2>
+            </div>
+            <div id="settingsList" class="settings-list"></div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-heading">
+              <h2>Active calls</h2>
+            </div>
+            <div id="activeCalls" class="card-list"></div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-heading">
+              <h2>Recent calls</h2>
+            </div>
+            <div id="recentCalls" class="card-list"></div>
+          </section>
+        </aside>
+      </section>
+    </main>
+
+    <script src="/agent/app.js" type="module"></script>
+  </body>
+</html>

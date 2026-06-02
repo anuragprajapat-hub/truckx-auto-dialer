@@ -3,9 +3,21 @@
   "name": "TruckX Auto Dialer",
   "description": "TruckX agent dialer extension for HubSpot-connected outbound calling.",
   "version": "0.1.0",
+  "icons": {
+    "16": "truckx-mark.svg",
+    "32": "truckx-mark.svg",
+    "48": "truckx-mark.svg",
+    "128": "truckx-mark.svg"
+  },
   "action": {
     "default_title": "TruckX Auto Dialer",
-    "default_popup": "popup.html"
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "truckx-mark.svg",
+      "32": "truckx-mark.svg",
+      "48": "truckx-mark.svg",
+      "128": "truckx-mark.svg"
+    }
   },
   "permissions": [
     "storage",
