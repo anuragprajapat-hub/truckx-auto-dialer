@@ -150,6 +150,13 @@ function setupStatus() {
         message: isPublicWebhookUrl ? 'Public HTTPS URL ready' : 'Needed for real carrier callbacks'
       },
       {
+        id: 'email_invites',
+        label: 'Email invites',
+        ok: Boolean(config.email.resendApiKey),
+        value: config.email.resendApiKey ? 'Enabled' : 'Manual',
+        message: config.email.resendApiKey ? 'Agent invitations will be emailed' : 'Set RESEND_API_KEY or copy invite links manually'
+      },
+      {
         id: 'caller_ids',
         label: 'Caller ID pool',
         ok: config.callerIdNumbers.length > 0,

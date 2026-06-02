@@ -13,6 +13,7 @@ This is a standalone autodialer prototype for a sales team calling US numbers. I
 - Updates lead status in the local store.
 - Shows live campaign, queue, active calls, call log, and agent reports in the browser.
 - Adds an admin-style portal with PowerLists, Reports, Call History, Agents, Live, and Setup sections.
+- Adds Truckx logo assets, favicon, extension branding, and a startup splash screen.
 - Lets admins invite agents by name/email and HubSpot owner.
 - Includes a starter Chrome extension under `extension/` for agent setup and future HubSpot page integration.
 - Includes starter adapters for Twilio and Plivo so real calling can be wired next.
@@ -101,6 +102,16 @@ For local Chrome testing:
 5. Paste the invite setup token in the extension popup.
 
 The extension currently handles invite activation and agent connection. The next extension step is to add a HubSpot contact-page dial button and package it for Chrome Web Store.
+
+## Logo Options
+
+Open this page after deployment to compare logo directions:
+
+```text
+https://truckx-auto-dialer.onrender.com/logo-options.html
+```
+
+The current default is **A. TX Badge Wordmark**.
 
 Credential instructions are in [docs/GET_CREDENTIALS.md](docs/GET_CREDENTIALS.md).
 

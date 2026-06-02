@@ -117,6 +117,13 @@ function latestInviteForAgent(agent) {
   return (state.agentInvites || []).find((invite) => invite.agentId === agent.id || invite.email === agent.email);
 }
 
+function inviteEmailStatus(invite) {
+  if (!invite) return '';
+  if (invite.emailSent) return 'email sent';
+  if (invite.emailError) return invite.emailError;
+  return 'manual link';
+}
+
 async function copyText(value) {
   if (!value) return;
   if (navigator.clipboard?.writeText) {
@@ -481,7 +488,12 @@ function renderAgents() {
         .map((agent) => {
           const invite = latestInviteForAgent(agent);
           const inviteCell = invite?.inviteUrl
-            ? `<button type="button" data-copy-invite="${escapeHtml(invite.inviteUrl)}">Copy invite</button>`
+            ? `
+              <div class="invite-actions">
+                <button type="button" data-copy-invite="${escapeHtml(invite.inviteUrl)}">Copy invite link</button>
+                <span>${escapeHtml(inviteEmailStatus(invite))}</span>
+              </div>
+            `
             : '<span class="muted">No invite</span>';
           return `
             <tr>

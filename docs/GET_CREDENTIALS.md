@@ -59,6 +59,8 @@ INVITE_FROM_EMAIL=Truckx Auto Dialer <dialer@yourdomain.com>
 
 Without these, the admin can copy the invite link from the Agents table and send it manually.
 
+If the Agents table says `RESEND_API_KEY is not configured`, that is expected until the key is added in Render. The invite still works through **Copy invite link**.
+
 Recommended scopes:
 
 ```text

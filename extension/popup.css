@@ -22,8 +22,8 @@ header {
   justify-content: space-between;
 }
 
-header strong {
-  font-size: 20px;
+header img {
+  width: 138px;
 }
 
 header span,

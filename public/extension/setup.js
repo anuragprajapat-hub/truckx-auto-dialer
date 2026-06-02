@@ -7,6 +7,11 @@ const agentName = document.querySelector('#agentName');
 const agentEmail = document.querySelector('#agentEmail');
 const ownerId = document.querySelector('#ownerId');
 const copyInviteButton = document.querySelector('#copyInviteButton');
+const copyAppUrlButton = document.querySelector('#copyAppUrlButton');
+const setupSteps = document.querySelector('#setupSteps');
+const setupValues = document.querySelector('#setupValues');
+const appUrl = document.querySelector('#appUrl');
+const setupToken = document.querySelector('#setupToken');
 
 async function lookupInvite() {
   if (!inviteToken) {
@@ -28,12 +33,22 @@ async function lookupInvite() {
   agentEmail.textContent = body.agent.email;
   ownerId.textContent = body.agent.hubspotOwnerId || 'Not linked yet';
   inviteDetails.hidden = false;
+  setupSteps.hidden = false;
+  setupValues.hidden = false;
+  appUrl.value = window.location.origin;
+  setupToken.value = inviteToken;
   copyInviteButton.hidden = false;
+  copyAppUrlButton.hidden = false;
 }
 
 copyInviteButton.addEventListener('click', async () => {
   await navigator.clipboard.writeText(inviteToken);
   copyInviteButton.textContent = 'Setup token copied';
+});
+
+copyAppUrlButton.addEventListener('click', async () => {
+  await navigator.clipboard.writeText(window.location.origin);
+  copyAppUrlButton.textContent = 'App URL copied';
 });
 
 lookupInvite().catch((error) => {

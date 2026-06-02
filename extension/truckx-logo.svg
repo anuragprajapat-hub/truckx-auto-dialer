@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 104" role="img" aria-labelledby="title">
+  <title id="title">Truckx Auto Dialer logo</title>
+  <defs>
+    <linearGradient id="txBadge" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#11a88e"/>
+      <stop offset="1" stop-color="#0f7b6c"/>
+    </linearGradient>
+  </defs>
+  <rect x="342" y="10" width="58" height="58" rx="14" fill="url(#txBadge)"/>
+  <path d="M358 25h32v10h-10v21h-12V35h-10V25Z" fill="#fff"/>
+  <path d="M357 57l12-16h12l-11 15 13 18h-13l-6-9-6 9h-13l12-17Z" fill="#fff"/>
+  <text x="24" y="69" transform="skewX(-10)" fill="#111111" font-family="Arial Black, Impact, Inter, Arial, sans-serif" font-size="58" font-weight="900" letter-spacing="-1">TRUCKX</text>
+  <text x="29" y="96" fill="#5f6d67" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700" letter-spacing="3">AUTO DIALER</text>
+</svg>

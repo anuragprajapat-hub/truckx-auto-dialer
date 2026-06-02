@@ -8,7 +8,8 @@
   </head>
   <body>
     <main class="setup-card">
-      <h1>Truckx Extension Setup</h1>
+      <img class="setup-logo" src="/assets/truckx-logo.svg" alt="Truckx Auto Dialer">
+      <h1>Extension Setup</h1>
       <p id="statusText">Checking your invitation...</p>
       <section id="inviteDetails" hidden>
         <div>
@@ -24,8 +25,38 @@
           <strong id="ownerId"></strong>
         </div>
       </section>
-      <button id="copyInviteButton" type="button" hidden>Copy setup token</button>
-      <p class="small">Install the Truckx Chrome extension, paste this setup token into the popup, and activate your account.</p>
+      <section id="setupSteps" class="steps" hidden>
+        <div>
+          <span>Step 1</span>
+          <strong>Install the Truckx Chrome extension</strong>
+          <p>For now, your admin needs to send you the extension package or install it through Chrome developer mode. Chrome Web Store publishing is the next step.</p>
+        </div>
+        <div>
+          <span>Step 2</span>
+          <strong>Open the extension popup</strong>
+          <p>Use the app URL and setup token below.</p>
+        </div>
+        <div>
+          <span>Step 3</span>
+          <strong>Activate your agent account</strong>
+          <p>After activation, the extension connects to your HubSpot owner queue.</p>
+        </div>
+      </section>
+      <div id="setupValues" class="setup-values" hidden>
+        <label>
+          App URL
+          <input id="appUrl" readonly>
+        </label>
+        <label>
+          Setup token
+          <input id="setupToken" readonly>
+        </label>
+      </div>
+      <div class="button-row">
+        <button id="copyInviteButton" type="button" hidden>Copy setup token</button>
+        <button id="copyAppUrlButton" type="button" hidden>Copy app URL</button>
+      </div>
+      <p class="small">Email invites work after the admin configures an email provider. Until then, send this setup page link manually.</p>
     </main>
     <script src="/extension/setup.js" type="module"></script>
   </body>

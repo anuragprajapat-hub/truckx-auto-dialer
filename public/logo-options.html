@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Truckx Logo Options</title>
+    <style>
+      body {
+        background: #f7f8f4;
+        color: #1c2420;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        margin: 0;
+        padding: 28px;
+      }
+
+      h1,
+      p {
+        margin: 0;
+      }
+
+      p {
+        color: #66736d;
+        margin-top: 8px;
+      }
+
+      .grid {
+        display: grid;
+        gap: 18px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        margin-top: 24px;
+      }
+
+      .option {
+        background: #ffffff;
+        border: 1px solid #dfe5dc;
+        border-radius: 8px;
+        display: grid;
+        gap: 14px;
+        min-height: 230px;
+        padding: 22px;
+      }
+
+      .preview {
+        align-items: center;
+        background: #f3f5fa;
+        border-radius: 8px;
+        display: flex;
+        justify-content: center;
+        min-height: 120px;
+      }
+
+      svg,
+      img {
+        max-width: 340px;
+        width: 86%;
+      }
+
+      @media (max-width: 800px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Truckx Logo Options</h1>
+    <p>Pick a direction and I can refine it into the final app, extension, favicon, and splash assets.</p>
+
+    <main class="grid">
+      <section class="option">
+        <div class="preview">
+          <img src="/assets/truckx-logo.svg" alt="Option A Truckx logo">
+        </div>
+        <h2>A. TX Badge Wordmark</h2>
+        <p>Bold and software-like. Best if we want a clean Kixie-style app brand without copying their mark.</p>
+      </section>
+
+      <section class="option">
+        <div class="preview">
+          <svg viewBox="0 0 420 104" role="img" aria-label="Option B Truckx logo">
+            <path d="M32 63c42-35 84-35 126 0s84 35 126 0" fill="none" stroke="#0f7b6c" stroke-width="9" stroke-linecap="round"/>
+            <text x="24" y="61" transform="skewX(-8)" fill="#111" font-family="Arial Black, Impact, Arial, sans-serif" font-size="52">TRUCKX</text>
+            <text x="29" y="92" fill="#66736d" font-family="Arial, sans-serif" font-size="13" font-weight="700" letter-spacing="3">ROUTE TO CONNECT</text>
+          </svg>
+        </div>
+        <h2>B. Route Signal</h2>
+        <p>More trucking/logistics focused. Good if you want the dialer to still feel connected to Truckx’s core business.</p>
+      </section>
+
+      <section class="option">
+        <div class="preview">
+          <svg viewBox="0 0 420 104" role="img" aria-label="Option C Truckx logo">
+            <rect x="20" y="17" width="70" height="70" rx="17" fill="#111"/>
+            <path d="M34 34h42v11H61v28H49V45H34V34Zm4 40 17-23h12L50 74H38Zm30-23 16 23H71L55 51h13Z" fill="#fff"/>
+            <text x="108" y="63" fill="#111" font-family="Arial Black, Impact, Arial, sans-serif" font-size="50">TRUCKX</text>
+            <text x="112" y="89" fill="#0f7b6c" font-family="Arial, sans-serif" font-size="13" font-weight="700" letter-spacing="2">AUTO DIALER</text>
+          </svg>
+        </div>
+        <h2>C. App Icon First</h2>
+        <p>Strongest for Chrome extension and small UI spaces. The TX mark becomes the recognizable product icon.</p>
+      </section>
+
+      <section class="option">
+        <div class="preview">
+          <svg viewBox="0 0 420 104" role="img" aria-label="Option D Truckx logo">
+            <text x="28" y="67" transform="skewX(-12)" fill="#111" font-family="Arial Black, Impact, Arial, sans-serif" font-size="60">TRUCKX</text>
+            <circle cx="344" cy="45" r="24" fill="#ef3f3f"/>
+            <path d="M334 33h21v8h-7v21h-8V41h-6v-8Z" fill="#fff"/>
+            <path d="m334 63 11-14h8l-10 14h-9Zm19-14 10 14h-10l-9-14h9Z" fill="#fff"/>
+            <text x="31" y="96" fill="#66736d" font-family="Arial, sans-serif" font-size="13" font-weight="700" letter-spacing="3">POWER DIALING FOR LOGISTICS</text>
+          </svg>
+        </div>
+        <h2>D. Red Accent</h2>
+        <p>Most aggressive and closest in energy to the Kixie example, but still branded as Truckx.</p>
+      </section>
+    </main>
+  </body>
+</html>
