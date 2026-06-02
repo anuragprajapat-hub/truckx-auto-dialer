@@ -115,6 +115,47 @@
         <aside class="side-stack">
           <section class="panel">
             <div class="panel-heading">
+              <h2>New PowerList</h2>
+            </div>
+            <form id="powerListForm" class="powerlist-form">
+              <label>
+                Name
+                <input id="powerListName" name="name" placeholder="SOORAJ PST" required>
+              </label>
+              <label>
+                Zone
+                <select id="powerListZone" name="timeZoneTarget">
+                  <option value="PST">PST</option>
+                  <option value="EST">EST</option>
+                  <option value="CST">CST</option>
+                  <option value="MST">MST</option>
+                  <option value="ALL">All zones</option>
+                </select>
+              </label>
+              <label>
+                Lines
+                <input id="powerListLines" name="maxParallelCalls" type="number" min="1" max="10" value="3">
+              </label>
+              <label>
+                Agent phone
+                <input id="agentPhone" name="agentPhone" placeholder="+15557654321">
+              </label>
+              <div class="time-row">
+                <label>
+                  Start
+                  <input id="callWindowStart" name="callWindowStart" type="time" value="09:00">
+                </label>
+                <label>
+                  End
+                  <input id="callWindowEnd" name="callWindowEnd" type="time" value="18:00">
+                </label>
+              </div>
+              <button class="success-button" type="submit">Create</button>
+            </form>
+          </section>
+
+          <section class="panel">
+            <div class="panel-heading">
               <h2>Settings</h2>
             </div>
             <div id="settingsList" class="settings-list"></div>

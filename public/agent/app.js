@@ -26,6 +26,10 @@ const elements = {
   syncButton: document.querySelector('#syncButton'),
   startButton: document.querySelector('#startButton'),
   stopButton: document.querySelector('#stopButton'),
+  powerListForm: document.querySelector('#powerListForm'),
+  powerListName: document.querySelector('#powerListName'),
+  powerListZone: document.querySelector('#powerListZone'),
+  agentPhone: document.querySelector('#agentPhone'),
   dispositionPanel: document.querySelector('#dispositionPanel'),
   dispositionLead: document.querySelector('#dispositionLead'),
   dispositionForm: document.querySelector('#dispositionForm'),
@@ -160,6 +164,18 @@ function renderHeader() {
   elements.agentEmail.textContent = agent.email || state.currentUser?.email || owner.email || '';
 }
 
+function renderPowerListDefaults() {
+  const owner = state.owners?.[0] || {};
+  const ownerFirstName = String(owner.name || 'Agent').split(/\s+/)[0].toUpperCase();
+  const zone = elements.powerListZone.value || 'PST';
+  if (!elements.powerListName.value) {
+    elements.powerListName.value = `${ownerFirstName} ${zone}`;
+  }
+  if (!elements.agentPhone.value && owner.agentPhone) {
+    elements.agentPhone.value = owner.agentPhone;
+  }
+}
+
 function renderStats() {
   const report = state.reports?.agents?.[0] || {};
   elements.statCalls.textContent = report.totalCalls || 0;
@@ -249,9 +265,11 @@ function renderSettings() {
   const hubspotStatus = state.settings.leadSource === 'hubspot' ? 'Connected' : 'Mock mode';
   elements.settingsList.innerHTML = [
     ['HubSpot', hubspotStatus],
+    ['Lead source', state.settings.leadSource],
     ['Owner', owner.name || 'Not linked'],
     ['Owner ID', owner.hubspotOwnerId || state.currentUser?.hubspotOwnerId || ''],
-    ['Extension', agent.extensionStatus || 'connected']
+    ['Extension', agent.extensionStatus || 'connected'],
+    ['Caller IDs', `${state.settings.callerIdNumbers?.length || 0} available`]
   ].map(([label, value]) => `
     <div class="settings-item">
       <strong>${escapeHtml(label)}</strong>
@@ -288,6 +306,7 @@ function renderCalls() {
 function render() {
   showAgent();
   renderHeader();
+  renderPowerListDefaults();
   renderStats();
   renderCampaigns();
   renderLeads();
@@ -316,6 +335,47 @@ elements.manualConnectButton.addEventListener('click', async () => {
 elements.campaignSelect.addEventListener('change', async () => {
   selectedCampaignId = elements.campaignSelect.value;
   await loadState();
+});
+
+elements.powerListZone.addEventListener('change', () => {
+  const owner = state?.owners?.[0] || {};
+  const ownerFirstName = String(owner.name || 'Agent').split(/\s+/)[0].toUpperCase();
+  elements.powerListName.value = `${ownerFirstName} ${elements.powerListZone.value}`;
+});
+
+elements.powerListForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const owner = state?.owners?.[0];
+  if (!owner) {
+    setNotice('No HubSpot owner is linked to this agent.', 'error');
+    return;
+  }
+
+  const form = new FormData(elements.powerListForm);
+  const payload = {
+    ...Object.fromEntries(form),
+    ownerId: owner.id,
+    dialMode: 'predictive'
+  };
+
+  try {
+    const campaign = await api('/api/campaigns', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+    selectedCampaignId = campaign.id;
+    setNotice('PowerList created. Syncing HubSpot contacts...', 'success');
+
+    if (state.settings.leadSource === 'hubspot') {
+      await api(`/api/campaigns/${campaign.id}/sync-hubspot`, { method: 'POST' });
+    }
+
+    elements.powerListName.value = '';
+    await loadState();
+    setNotice('PowerList ready.', 'success');
+  } catch (error) {
+    setNotice(error.message, 'error');
+  }
 });
 
 elements.syncButton.addEventListener('click', async () => {

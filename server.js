@@ -514,11 +514,12 @@ async function handleApi(request, response, url) {
     const body = await parseBody(request);
     if (request.user?.role === 'agent') {
       const data = getStore();
-      const ownerIds = ownerIdsForUser(data, request.user);
-      if (!ownerIds.has(body.ownerId)) {
-        sendJson(response, { error: 'Agents can create campaigns only for their own HubSpot owner' }, 403);
+      const ownerId = [...ownerIdsForUser(data, request.user)][0] || '';
+      if (!ownerId) {
+        sendJson(response, { error: 'No HubSpot owner is linked to this agent' }, 403);
         return true;
       }
+      body.ownerId = ownerId;
     }
     const campaign = createCampaign(body);
     sendJson(response, campaign, 201);

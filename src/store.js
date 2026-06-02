@@ -182,7 +182,7 @@ export function createCampaign(input) {
       hubspotOwnerId: owner.hubspotOwnerId,
       source: input.source || 'mock',
       status: 'draft',
-      maxParallelCalls: Number(input.maxParallelCalls || 2),
+      maxParallelCalls: Math.max(1, Math.min(10, Number(input.maxParallelCalls || 2))),
       agentPhone: input.agentPhone || owner.agentPhone,
       callerIdNumbers: Array.isArray(input.callerIdNumbers) ? input.callerIdNumbers : [],
       timeZoneTarget: String(input.timeZoneTarget || 'ALL').toUpperCase(),

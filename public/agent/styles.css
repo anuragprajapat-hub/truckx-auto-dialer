@@ -339,9 +339,16 @@ tr:last-child td {
 
 .side-stack,
 .settings-list,
-.card-list {
+.card-list,
+.powerlist-form {
   display: grid;
   gap: 10px;
+}
+
+.time-row {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 1fr 1fr;
 }
 
 .settings-item,
@@ -369,6 +376,7 @@ tr:last-child td {
 @media (max-width: 1020px) {
   .workspace,
   .control-grid,
+  .time-row,
   .disposition-panel,
   .disposition-panel form {
     grid-template-columns: 1fr;
