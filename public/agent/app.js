@@ -1,5 +1,6 @@
 const TOKEN_KEY = 'truckxAgentToken';
 const ACTIVE_STATUSES = new Set(['dialing', 'queued', 'ringing', 'in_progress']);
+const REQUEST_TIMEOUT_MS = 70000;
 
 let authToken = '';
 let state = null;
@@ -49,6 +50,35 @@ function setToken(token) {
   if (authToken) localStorage.setItem(TOKEN_KEY, authToken);
 }
 
+async function fetchJson(path, options = {}) {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(path, {
+      ...options,
+      signal: controller.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+        ...(options.headers || {})
+      }
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(body.error || `Request failed with ${response.status}`);
+    }
+    return body;
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      throw new Error('Connection timed out. The server may still be waking up; wait a few seconds and try again.');
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
+
 function initialToken() {
   const params = new URLSearchParams(window.location.search);
   const queryToken = params.get('token') || '';
@@ -60,15 +90,10 @@ function initialToken() {
 }
 
 async function exchangeInviteToken(inviteToken) {
-  const response = await fetch(`/api/invites/${encodeURIComponent(inviteToken)}/accept`, {
+  const body = await fetchJson(`/api/invites/${encodeURIComponent(inviteToken)}/accept`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({})
   });
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(body.error || `Invite failed with ${response.status}`);
-  }
   return body.token;
 }
 
@@ -84,24 +109,18 @@ async function connectWithToken(rawToken) {
 }
 
 async function api(path, options = {}) {
-  const response = await fetch(path, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${authToken}`,
-      ...(options.headers || {})
-    }
-  });
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(body.error || `Request failed with ${response.status}`);
-  }
-  return body;
+  return fetchJson(path, options);
 }
 
 function showSetup(message = '') {
   elements.setupView.hidden = false;
   elements.agentView.hidden = true;
+  elements.setupMessage.textContent = message;
+}
+
+function setConnectBusy(isBusy, message = '') {
+  elements.manualConnectButton.disabled = isBusy;
+  elements.manualConnectButton.textContent = isBusy ? 'Connecting...' : 'Connect';
   elements.setupMessage.textContent = message;
 }
 
@@ -282,7 +301,12 @@ async function loadState() {
 }
 
 elements.manualConnectButton.addEventListener('click', async () => {
+  const slowMessageTimer = window.setTimeout(() => {
+    elements.setupMessage.textContent = 'Still connecting. Render free instances can take a little time to wake up.';
+  }, 8000);
+
   try {
+    setConnectBusy(true, 'Connecting to TruckX Auto Dialer...');
     await connectWithToken(elements.manualToken.value);
     setNotice('Connected.', 'success');
   } catch (error) {
@@ -290,6 +314,9 @@ elements.manualConnectButton.addEventListener('click', async () => {
     showSetup(error.message === 'Invite is no longer active'
       ? 'This invite was already used. Ask admin for the latest setup link, or open the dialer from the connected extension.'
       : error.message);
+  } finally {
+    window.clearTimeout(slowMessageTimer);
+    setConnectBusy(false, elements.setupMessage.textContent);
   }
 });
 
@@ -346,11 +373,14 @@ const bootToken = initialToken();
 if (!bootToken) {
   showSetup();
 } else {
+  setConnectBusy(true, 'Connecting to TruckX Auto Dialer...');
   connectWithToken(bootToken).catch((error) => {
     localStorage.removeItem(TOKEN_KEY);
     showSetup(error.message === 'Invite is no longer active'
       ? 'This invite was already used. Ask admin for the latest setup link, or open the dialer from the connected extension.'
       : error.message);
+  }).finally(() => {
+    setConnectBusy(false, elements.setupMessage.textContent);
   });
   setInterval(() => {
     if (!elements.agentView.hidden) {
