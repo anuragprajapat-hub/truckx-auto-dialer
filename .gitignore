@@ -1,3 +1,4 @@
 .env
 data/store.json
 logs/
+node_modules/

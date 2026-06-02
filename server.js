@@ -12,12 +12,15 @@ import {
   addDncNumber,
   addEvent,
   agentFromApiToken,
+  closeStore,
   createAgentInvite,
   createCampaign,
   getAgentInvite,
   getStore,
+  initStore,
   removeDncNumber,
   setCampaignStatus,
+  storeBackend,
   touchAgent,
   updateAgentInviteEmailStatus,
   updateLead
@@ -176,6 +179,13 @@ function setupStatus() {
         ok: Boolean(config.voicemailAudioUrl),
         value: config.voicemailAudioUrl ? 'Configured' : 'Optional',
         message: config.voicemailAudioUrl || 'Add VOICEMAIL_AUDIO_URL when ready'
+      },
+      {
+        id: 'storage',
+        label: 'Storage',
+        ok: true,
+        value: storeBackend(),
+        message: storeBackend() === 'postgres' ? 'Render PostgreSQL is active' : 'Local file storage is active'
       },
       {
         id: 'dnc',
@@ -342,6 +352,7 @@ async function handleApi(request, response, url) {
       appName: 'TruckX Auto Dialer',
       provider: config.voiceProvider,
       leadSource: config.leadSource,
+      storage: storeBackend(),
       time: new Date().toISOString()
     });
     return true;
@@ -703,10 +714,25 @@ const server = http.createServer(async (request, response) => {
   }
 });
 
+await initStore();
 dialerEngine.start();
+
+async function shutdown() {
+  await closeStore();
+  process.exit(0);
+}
+
+process.on('SIGTERM', () => {
+  shutdown().catch(() => process.exit(1));
+});
+
+process.on('SIGINT', () => {
+  shutdown().catch(() => process.exit(1));
+});
 
 server.listen(config.port, () => {
   console.log(`TruckX Auto Dialer running at http://localhost:${config.port}`);
   console.log(`Voice provider: ${config.voiceProvider}`);
   console.log(`Lead source: ${config.leadSource}`);
+  console.log(`Storage: ${storeBackend()}`);
 });

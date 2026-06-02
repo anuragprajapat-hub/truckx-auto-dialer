@@ -1,8 +1,16 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { randomBytes, randomUUID } from 'node:crypto';
+import pg from 'pg';
 
 const storePath = path.resolve(process.cwd(), 'data', 'store.json');
+const storeId = 'default';
+const { Pool } = pg;
+
+let cachedStore = null;
+let pool = null;
+let initialized = false;
+let writeQueue = Promise.resolve();
 
 function seedStore() {
   const now = new Date().toISOString();
@@ -115,19 +123,26 @@ function seedStore() {
 }
 
 function ensureStore() {
+  fs.mkdirSync(path.dirname(storePath), { recursive: true });
   if (!fs.existsSync(storePath)) {
     fs.writeFileSync(storePath, JSON.stringify(seedStore(), null, 2));
   }
 }
 
-function read() {
-  ensureStore();
-  const data = JSON.parse(fs.readFileSync(storePath, 'utf8'));
+function normalizeStore(data) {
+  data = data && typeof data === 'object' ? data : seedStore();
+  if (!data.meta) data.meta = {};
+  if (!data.meta.createdAt) data.meta.createdAt = new Date().toISOString();
+  if (!data.meta.updatedAt) data.meta.updatedAt = data.meta.createdAt;
   if (!Array.isArray(data.dncNumbers)) data.dncNumbers = [];
   if (!Array.isArray(data.events)) data.events = [];
   if (!Array.isArray(data.sessions)) data.sessions = [];
   if (!Array.isArray(data.agents)) data.agents = [];
   if (!Array.isArray(data.agentInvites)) data.agentInvites = [];
+  if (!Array.isArray(data.owners)) data.owners = [];
+  if (!Array.isArray(data.leads)) data.leads = [];
+  if (!Array.isArray(data.campaigns)) data.campaigns = [];
+  if (!Array.isArray(data.calls)) data.calls = [];
   for (const campaign of data.campaigns || []) {
     if (!campaign.timeZoneTarget) campaign.timeZoneTarget = 'ALL';
     if (typeof campaign.pauseOnLiveAnswer !== 'boolean') campaign.pauseOnLiveAnswer = true;
@@ -136,9 +151,114 @@ function read() {
   return data;
 }
 
-function write(data) {
+function readFileStore() {
+  ensureStore();
+  return normalizeStore(JSON.parse(fs.readFileSync(storePath, 'utf8')));
+}
+
+function writeFileStore(data) {
+  fs.mkdirSync(path.dirname(storePath), { recursive: true });
   data.meta.updatedAt = new Date().toISOString();
   fs.writeFileSync(storePath, JSON.stringify(data, null, 2));
+  return data;
+}
+
+function postgresSsl() {
+  const mode = String(process.env.PGSSLMODE || process.env.DATABASE_SSL || '').toLowerCase();
+  if (mode === 'require' || mode === 'true') return { rejectUnauthorized: false };
+  if (mode === 'disable' || mode === 'false') return false;
+  if (String(process.env.DATABASE_URL || '').includes('sslmode=require')) {
+    return { rejectUnauthorized: false };
+  }
+  return undefined;
+}
+
+async function writePostgresStore(data) {
+  await pool.query(
+    `
+      insert into truckx_app_store (id, data, updated_at)
+      values ($1, $2::jsonb, now())
+      on conflict (id)
+      do update set data = excluded.data, updated_at = now()
+    `,
+    [storeId, JSON.stringify(data)]
+  );
+}
+
+async function initPostgresStore() {
+  pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: postgresSsl()
+  });
+
+  await pool.query(`
+    create table if not exists truckx_app_store (
+      id text primary key,
+      data jsonb not null,
+      updated_at timestamptz not null default now()
+    )
+  `);
+
+  const result = await pool.query('select data from truckx_app_store where id = $1', [storeId]);
+  if (result.rows[0]?.data) {
+    cachedStore = normalizeStore(result.rows[0].data);
+    return;
+  }
+
+  cachedStore = readFileStore();
+  await writePostgresStore(cachedStore);
+}
+
+export async function initStore() {
+  if (initialized) return;
+  if (process.env.DATABASE_URL) {
+    try {
+      await initPostgresStore();
+      initialized = true;
+      return;
+    } catch (error) {
+      console.error(`Postgres store unavailable, falling back to local file: ${error.message}`);
+      pool = null;
+    }
+  }
+
+  cachedStore = readFileStore();
+  initialized = true;
+}
+
+export function storeBackend() {
+  return pool ? 'postgres' : 'file';
+}
+
+export async function flushStore() {
+  await writeQueue;
+}
+
+export async function closeStore() {
+  await flushStore();
+  if (pool) await pool.end();
+}
+
+function read() {
+  if (!cachedStore) cachedStore = readFileStore();
+  return normalizeStore(cachedStore);
+}
+
+function write(data) {
+  data.meta.updatedAt = new Date().toISOString();
+  cachedStore = data;
+
+  if (!pool) {
+    writeFileStore(data);
+    return data;
+  }
+
+  const snapshot = JSON.parse(JSON.stringify(data));
+  writeQueue = writeQueue
+    .then(() => writePostgresStore(snapshot))
+    .catch((error) => {
+      console.error(`Postgres store write failed: ${error.message}`);
+    });
   return data;
 }
 
