@@ -511,16 +511,8 @@ async function handleApi(request, response, url) {
   }
 
   if (request.method === 'POST' && url.pathname === '/api/campaigns') {
+    if (requireAdmin(request, response)) return true;
     const body = await parseBody(request);
-    if (request.user?.role === 'agent') {
-      const data = getStore();
-      const ownerId = [...ownerIdsForUser(data, request.user)][0] || '';
-      if (!ownerId) {
-        sendJson(response, { error: 'No HubSpot owner is linked to this agent' }, 403);
-        return true;
-      }
-      body.ownerId = ownerId;
-    }
     const campaign = createCampaign(body);
     sendJson(response, campaign, 201);
     return true;
@@ -544,6 +536,7 @@ async function handleApi(request, response, url) {
 
   const syncCampaignId = campaignIdFromPath(url.pathname, 'sync-hubspot');
   if (request.method === 'POST' && syncCampaignId) {
+    if (requireAdmin(request, response)) return true;
     assertCampaignAccess(syncCampaignId, request.user);
     const result = await dialerEngine.syncHubSpotLeadsForCampaign(syncCampaignId);
     sendJson(response, result);

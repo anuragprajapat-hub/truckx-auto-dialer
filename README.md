@@ -13,7 +13,7 @@ This is a standalone autodialer prototype for a sales team calling US numbers. I
 - Updates lead status in the local store.
 - Shows live campaign, queue, active calls, call log, and agent reports in the browser.
 - Adds an admin-style portal with PowerLists, Reports, Call History, Agents, Live, and Setup sections.
-- Adds an agent-only dialer portal where agents can create owner-locked PowerLists, sync HubSpot contacts, start/stop dialing, and save after-call lead status.
+- Adds an agent-only dialer portal where agents can use assigned PowerLists, start/stop dialing, see calls, and save after-call lead status.
 - Adds TruckX logo assets, favicon, extension branding, and a startup splash screen.
 - Lets admins invite agents by name/email and HubSpot owner.
 - Includes a starter Chrome extension under `extension/` for agent setup and future HubSpot page integration.
@@ -104,7 +104,7 @@ For local Chrome testing:
 4. Select the repo's `extension` folder.
 5. Paste the invite setup token in the extension popup.
 
-Each agent needs to load the unpacked extension once on their own Chrome profile during local testing. The extension opens `/agent/`, which is an agent-only dialer screen backed by the invite token. Agents can create PowerLists only for their linked HubSpot owner. The next extension step is to add a HubSpot contact-page dial button and package it for Chrome Web Store.
+Each agent needs to load the unpacked extension once on their own Chrome profile during local testing. The extension opens `/agent/`, which is an agent-only dialer screen backed by the invite token. Admins create and sync PowerLists; agents only start/stop assigned lists and save after-call status. The next extension step is to add a HubSpot contact-page dial button and package it for Chrome Web Store.
 
 ## Logo Options
 

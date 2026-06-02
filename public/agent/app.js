@@ -23,20 +23,14 @@ const elements = {
   campaignSelect: document.querySelector('#campaignSelect'),
   campaignMeta: document.querySelector('#campaignMeta'),
   campaignStatus: document.querySelector('#campaignStatus'),
-  syncButton: document.querySelector('#syncButton'),
   startButton: document.querySelector('#startButton'),
   stopButton: document.querySelector('#stopButton'),
-  powerListForm: document.querySelector('#powerListForm'),
-  powerListName: document.querySelector('#powerListName'),
-  powerListZone: document.querySelector('#powerListZone'),
-  agentPhone: document.querySelector('#agentPhone'),
   dispositionPanel: document.querySelector('#dispositionPanel'),
   dispositionLead: document.querySelector('#dispositionLead'),
   dispositionForm: document.querySelector('#dispositionForm'),
   dispositionStatus: document.querySelector('#dispositionStatus'),
   dispositionNote: document.querySelector('#dispositionNote'),
   leadRows: document.querySelector('#leadRows'),
-  settingsList: document.querySelector('#settingsList'),
   activeCalls: document.querySelector('#activeCalls'),
   recentCalls: document.querySelector('#recentCalls')
 };
@@ -164,18 +158,6 @@ function renderHeader() {
   elements.agentEmail.textContent = agent.email || state.currentUser?.email || owner.email || '';
 }
 
-function renderPowerListDefaults() {
-  const owner = state.owners?.[0] || {};
-  const ownerFirstName = String(owner.name || 'Agent').split(/\s+/)[0].toUpperCase();
-  const zone = elements.powerListZone.value || 'PST';
-  if (!elements.powerListName.value) {
-    elements.powerListName.value = `${ownerFirstName} ${zone}`;
-  }
-  if (!elements.agentPhone.value && owner.agentPhone) {
-    elements.agentPhone.value = owner.agentPhone;
-  }
-}
-
 function renderStats() {
   const report = state.reports?.agents?.[0] || {};
   elements.statCalls.textContent = report.totalCalls || 0;
@@ -189,10 +171,9 @@ function renderCampaigns() {
   if (!state.campaigns.length) {
     elements.campaignSelect.innerHTML = '<option value="">No PowerLists</option>';
     selectedCampaignId = '';
-    elements.campaignMeta.textContent = 'No PowerList assigned';
+    elements.campaignMeta.textContent = 'No PowerList assigned. Ask admin to create and sync one.';
     elements.campaignStatus.outerHTML = '<span id="campaignStatus" class="pill">idle</span>';
     elements.campaignStatus = document.querySelector('#campaignStatus');
-    elements.syncButton.disabled = true;
     elements.startButton.disabled = true;
     elements.stopButton.disabled = true;
     return;
@@ -207,7 +188,6 @@ function renderCampaigns() {
   elements.campaignMeta.textContent = `${campaignTarget(current)} | ${current.maxParallelCalls} lines | ${current.callWindowStart}-${current.callWindowEnd} local`;
   elements.campaignStatus.outerHTML = statusPill(current.status || 'draft');
   elements.campaignStatus = document.querySelector('.panel-heading .pill');
-  elements.syncButton.disabled = state.settings.leadSource !== 'hubspot';
   elements.startButton.disabled = ['running', 'connected'].includes(current.status);
   elements.stopButton.disabled = !['running', 'connected', 'paused'].includes(current.status);
 }
@@ -259,25 +239,6 @@ function renderDisposition() {
   elements.dispositionForm.dataset.callId = call.id;
 }
 
-function renderSettings() {
-  const owner = state.owners?.[0] || {};
-  const agent = state.agents?.[0] || {};
-  const hubspotStatus = state.settings.leadSource === 'hubspot' ? 'Connected' : 'Mock mode';
-  elements.settingsList.innerHTML = [
-    ['HubSpot', hubspotStatus],
-    ['Lead source', state.settings.leadSource],
-    ['Owner', owner.name || 'Not linked'],
-    ['Owner ID', owner.hubspotOwnerId || state.currentUser?.hubspotOwnerId || ''],
-    ['Extension', agent.extensionStatus || 'connected'],
-    ['Caller IDs', `${state.settings.callerIdNumbers?.length || 0} available`]
-  ].map(([label, value]) => `
-    <div class="settings-item">
-      <strong>${escapeHtml(label)}</strong>
-      <span>${escapeHtml(value)}</span>
-    </div>
-  `).join('');
-}
-
 function renderCalls() {
   const campaign = selectedCampaign();
   const calls = state.calls.filter((call) => !campaign || call.campaignId === campaign.id);
@@ -306,12 +267,10 @@ function renderCalls() {
 function render() {
   showAgent();
   renderHeader();
-  renderPowerListDefaults();
   renderStats();
   renderCampaigns();
   renderLeads();
   renderDisposition();
-  renderSettings();
   renderCalls();
 }
 
@@ -335,59 +294,6 @@ elements.manualConnectButton.addEventListener('click', async () => {
 elements.campaignSelect.addEventListener('change', async () => {
   selectedCampaignId = elements.campaignSelect.value;
   await loadState();
-});
-
-elements.powerListZone.addEventListener('change', () => {
-  const owner = state?.owners?.[0] || {};
-  const ownerFirstName = String(owner.name || 'Agent').split(/\s+/)[0].toUpperCase();
-  elements.powerListName.value = `${ownerFirstName} ${elements.powerListZone.value}`;
-});
-
-elements.powerListForm.addEventListener('submit', async (event) => {
-  event.preventDefault();
-  const owner = state?.owners?.[0];
-  if (!owner) {
-    setNotice('No HubSpot owner is linked to this agent.', 'error');
-    return;
-  }
-
-  const form = new FormData(elements.powerListForm);
-  const payload = {
-    ...Object.fromEntries(form),
-    ownerId: owner.id,
-    dialMode: 'predictive'
-  };
-
-  try {
-    const campaign = await api('/api/campaigns', {
-      method: 'POST',
-      body: JSON.stringify(payload)
-    });
-    selectedCampaignId = campaign.id;
-    setNotice('PowerList created. Syncing HubSpot contacts...', 'success');
-
-    if (state.settings.leadSource === 'hubspot') {
-      await api(`/api/campaigns/${campaign.id}/sync-hubspot`, { method: 'POST' });
-    }
-
-    elements.powerListName.value = '';
-    await loadState();
-    setNotice('PowerList ready.', 'success');
-  } catch (error) {
-    setNotice(error.message, 'error');
-  }
-});
-
-elements.syncButton.addEventListener('click', async () => {
-  const campaign = selectedCampaign();
-  if (!campaign) return;
-  try {
-    const result = await api(`/api/campaigns/${campaign.id}/sync-hubspot`, { method: 'POST' });
-    setNotice(`Synced ${result.count || 0} HubSpot contact(s).`, 'success');
-    await loadState();
-  } catch (error) {
-    setNotice(error.message, 'error');
-  }
 });
 
 elements.startButton.addEventListener('click', async () => {

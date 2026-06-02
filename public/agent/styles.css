@@ -225,7 +225,7 @@ label {
   align-items: end;
   display: grid;
   gap: 10px;
-  grid-template-columns: minmax(220px, 1fr) auto auto auto;
+  grid-template-columns: minmax(220px, 1fr) auto auto;
   margin-bottom: 14px;
 }
 
@@ -338,20 +338,11 @@ tr:last-child td {
 }
 
 .side-stack,
-.settings-list,
-.card-list,
-.powerlist-form {
+.card-list {
   display: grid;
   gap: 10px;
 }
 
-.time-row {
-  display: grid;
-  gap: 10px;
-  grid-template-columns: 1fr 1fr;
-}
-
-.settings-item,
 .call-card {
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -360,13 +351,11 @@ tr:last-child td {
   padding: 10px;
 }
 
-.settings-item strong,
 .call-card strong {
   color: var(--text);
   font-size: 13px;
 }
 
-.settings-item span,
 .call-card span,
 .empty {
   color: var(--muted);
@@ -376,7 +365,6 @@ tr:last-child td {
 @media (max-width: 1020px) {
   .workspace,
   .control-grid,
-  .time-row,
   .disposition-panel,
   .disposition-panel form {
     grid-template-columns: 1fr;
