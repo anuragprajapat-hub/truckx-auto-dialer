@@ -69,6 +69,10 @@ function unauthorized(response) {
   response.end('Authentication required');
 }
 
+function unauthorizedApi(response) {
+  sendJson(response, { error: 'Authentication required' }, 401);
+}
+
 function authenticatedUser(request) {
   const header = request.headers.authorization || '';
   if (header.startsWith('Bearer ')) {
@@ -669,7 +673,11 @@ const server = http.createServer(async (request, response) => {
   try {
     request.user = authenticatedUser(request);
     if (isProtectedPath(url.pathname) && !request.user) {
-      unauthorized(response);
+      if (url.pathname.startsWith('/api/')) {
+        unauthorizedApi(response);
+      } else {
+        unauthorized(response);
+      }
       return;
     }
 

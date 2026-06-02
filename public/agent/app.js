@@ -134,6 +134,9 @@ function setupErrorMessage(error) {
   if (error.message === 'Invite is no longer active') {
     return 'This invite was already used. Ask admin for the latest setup link, or open the dialer from the connected extension.';
   }
+  if (error.message === 'Authentication required') {
+    return 'Agent session is not connected. Paste the latest setup token and connect again.';
+  }
   return error.message;
 }
 
