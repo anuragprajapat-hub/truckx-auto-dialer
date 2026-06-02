@@ -287,7 +287,9 @@ elements.manualConnectButton.addEventListener('click', async () => {
     setNotice('Connected.', 'success');
   } catch (error) {
     localStorage.removeItem(TOKEN_KEY);
-    showSetup(error.message);
+    showSetup(error.message === 'Invite is no longer active'
+      ? 'This invite was already used. Ask admin for the latest setup link, or open the dialer from the connected extension.'
+      : error.message);
   }
 });
 
@@ -346,7 +348,9 @@ if (!bootToken) {
 } else {
   connectWithToken(bootToken).catch((error) => {
     localStorage.removeItem(TOKEN_KEY);
-    showSetup(error.message);
+    showSetup(error.message === 'Invite is no longer active'
+      ? 'This invite was already used. Ask admin for the latest setup link, or open the dialer from the connected extension.'
+      : error.message);
   });
   setInterval(() => {
     if (!elements.agentView.hidden) {

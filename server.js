@@ -411,7 +411,8 @@ async function handleApi(request, response, url) {
         email: result.agent.email,
         hubspotOwnerId: result.agent.hubspotOwnerId
       },
-      apiBaseUrl: config.publicBaseUrl
+      apiBaseUrl: config.publicBaseUrl,
+      alreadyAccepted: Boolean(result.alreadyAccepted)
     });
     return true;
   }

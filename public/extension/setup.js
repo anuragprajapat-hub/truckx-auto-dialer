@@ -26,9 +26,12 @@ async function lookupInvite() {
     return;
   }
 
-  statusText.textContent = body.invite.status === 'pending'
-    ? 'Your invitation is ready.'
-    : `This invitation is ${body.invite.status}.`;
+  const statusMessages = {
+    pending: 'Your invitation is ready.',
+    accepted: 'This agent is already activated. You can use the same setup token to reconnect.',
+    expired: 'This invitation has expired. Ask your admin for a new invite.'
+  };
+  statusText.textContent = statusMessages[body.invite.status] || `This invitation is ${body.invite.status}.`;
   agentName.textContent = body.agent.name;
   agentEmail.textContent = body.agent.email;
   ownerId.textContent = body.agent.hubspotOwnerId || 'Not linked yet';

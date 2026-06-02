@@ -321,11 +321,23 @@ export function acceptAgentInvite(token, input = {}) {
   return updateStore((data) => {
     const invite = data.agentInvites.find((item) => item.token === token);
     if (!invite) throw new Error('Invite not found');
-    if (invite.status !== 'pending') throw new Error('Invite is no longer active');
-    if (new Date(invite.expiresAt).getTime() < Date.now()) throw new Error('Invite has expired');
 
     const agent = data.agents.find((item) => item.id === invite.agentId);
     if (!agent) throw new Error('Agent not found');
+
+    if (invite.status === 'accepted' && agent.status === 'active' && agent.apiToken) {
+      agent.lastSeenAt = new Date().toISOString();
+      agent.extensionStatus = 'connected';
+      agent.updatedAt = agent.lastSeenAt;
+      return {
+        agent: { ...agent, apiToken: agent.apiToken },
+        token: agent.apiToken,
+        alreadyAccepted: true
+      };
+    }
+
+    if (invite.status !== 'pending') throw new Error('Invite is no longer active');
+    if (new Date(invite.expiresAt).getTime() < Date.now()) throw new Error('Invite has expired');
 
     const now = new Date().toISOString();
     const apiToken = `txa_${inviteToken()}`;
