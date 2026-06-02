@@ -14,11 +14,11 @@ export async function sendAgentInviteEmail({ agent, invite }) {
     body: JSON.stringify({
       from: config.email.from,
       to: [agent.email],
-      subject: 'Your Truckx Auto Dialer invitation',
+      subject: 'Your TruckX Auto Dialer invitation',
       text: [
         `Hi ${agent.name || 'there'},`,
         '',
-        'You have been invited to Truckx Auto Dialer.',
+        'You have been invited to TruckX Auto Dialer.',
         `Open this link to set up your extension: ${invite.inviteUrl}`,
         '',
         'If you were not expecting this invitation, ignore this email.'

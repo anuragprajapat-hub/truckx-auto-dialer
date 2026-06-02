@@ -62,7 +62,7 @@ function isProtectedPath(pathname) {
 function unauthorized(response) {
   response.writeHead(401, {
     'Content-Type': 'text/plain; charset=utf-8',
-    'WWW-Authenticate': 'Basic realm="Truckx Auto Dialer"'
+    'WWW-Authenticate': 'Basic realm="TruckX Auto Dialer"'
   });
   response.end('Authentication required');
 }
@@ -117,7 +117,7 @@ function setupStatus() {
     || (config.voiceProvider === 'plivo' && Boolean(config.plivo.authId && config.plivo.authToken));
 
   return {
-    appName: 'Truckx Auto Dialer',
+    appName: 'TruckX Auto Dialer',
     checks: [
       {
         id: 'app_auth',
@@ -317,7 +317,7 @@ async function handleApi(request, response, url) {
   if (request.method === 'GET' && url.pathname === '/api/health') {
     sendJson(response, {
       ok: true,
-      appName: 'Truckx Auto Dialer',
+      appName: 'TruckX Auto Dialer',
       provider: config.voiceProvider,
       leadSource: config.leadSource,
       time: new Date().toISOString()
@@ -328,7 +328,7 @@ async function handleApi(request, response, url) {
   if (request.method === 'GET' && url.pathname === '/api/state') {
     const data = visibleState(getStore(), request.user);
     sendJson(response, {
-      appName: 'Truckx Auto Dialer',
+      appName: 'TruckX Auto Dialer',
       currentUser: {
         username: request.user?.username || 'local',
         role: request.user?.role || 'admin',
@@ -374,7 +374,7 @@ async function handleApi(request, response, url) {
         email: record.agent.email,
         hubspotOwnerId: record.agent.hubspotOwnerId
       },
-      appName: 'Truckx Auto Dialer'
+      appName: 'TruckX Auto Dialer'
     });
     return true;
   }
@@ -660,7 +660,7 @@ const server = http.createServer(async (request, response) => {
 dialerEngine.start();
 
 server.listen(config.port, () => {
-  console.log(`Truckx Auto Dialer running at http://localhost:${config.port}`);
+  console.log(`TruckX Auto Dialer running at http://localhost:${config.port}`);
   console.log(`Voice provider: ${config.voiceProvider}`);
   console.log(`Lead source: ${config.leadSource}`);
 });

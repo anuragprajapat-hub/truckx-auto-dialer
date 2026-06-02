@@ -1,8 +1,8 @@
 :root {
   color-scheme: light;
-  --teal: #0f7b6c;
-  --line: #dfe5dc;
-  --muted: #65736d;
+  --teal: #0879bd;
+  --line: #d8e2ea;
+  --muted: #607083;
 }
 
 * {
@@ -11,8 +11,8 @@
 
 body {
   align-items: center;
-  background: #f7f8f4;
-  color: #1c2420;
+  background: #f5f8fb;
+  color: #121821;
   display: flex;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   justify-content: center;
@@ -25,7 +25,7 @@ body {
   background: #ffffff;
   border: 1px solid var(--line);
   border-radius: 8px;
-  box-shadow: 0 18px 45px rgba(36, 47, 42, 0.08);
+  box-shadow: 0 18px 45px rgba(17, 30, 44, 0.08);
   display: grid;
   gap: 16px;
   max-width: 520px;
@@ -76,7 +76,7 @@ section div + div,
 .setup-values input {
   border: 1px solid var(--line);
   border-radius: 7px;
-  color: #1c2420;
+  color: #121821;
   font: inherit;
   padding: 10px;
 }
@@ -106,5 +106,5 @@ button {
 
 .button-row button + button {
   background: #ffffff;
-  color: #1c2420;
+  color: #121821;
 }

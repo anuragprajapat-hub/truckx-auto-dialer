@@ -3,11 +3,11 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Truckx Logo Options</title>
+    <title>TruckX Logo Options</title>
     <style>
       body {
-        background: #f7f8f4;
-        color: #1c2420;
+        background: #f5f8fb;
+        color: #121821;
         font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         margin: 0;
         padding: 28px;
@@ -19,7 +19,7 @@
       }
 
       p {
-        color: #66736d;
+        color: #607083;
         margin-top: 8px;
       }
 
@@ -32,7 +32,7 @@
 
       .option {
         background: #ffffff;
-        border: 1px solid #dfe5dc;
+        border: 1px solid #d8e2ea;
         border-radius: 8px;
         display: grid;
         gap: 14px;
@@ -42,17 +42,21 @@
 
       .preview {
         align-items: center;
-        background: #f3f5fa;
+        background: #eef5f8;
         border-radius: 8px;
         display: flex;
         justify-content: center;
-        min-height: 120px;
+        min-height: 124px;
       }
 
       svg,
       img {
         max-width: 340px;
         width: 86%;
+      }
+
+      .mark-preview img {
+        max-width: 92px;
       }
 
       @media (max-width: 800px) {
@@ -63,55 +67,64 @@
     </style>
   </head>
   <body>
-    <h1>Truckx Logo Options</h1>
-    <p>Pick a direction and I can refine it into the final app, extension, favicon, and splash assets.</p>
+    <h1>TruckX Logo Options</h1>
+    <p>These are website-inspired directions for the dialer brand. Option A is now installed in the app, extension, favicon, and setup pages.</p>
 
     <main class="grid">
       <section class="option">
         <div class="preview">
-          <img src="/assets/truckx-logo.svg" alt="Option A Truckx logo">
+          <img src="/assets/truckx-logo.svg" alt="Option A TruckX connected wordmark">
         </div>
-        <h2>A. TX Badge Wordmark</h2>
-        <p>Bold and software-like. Best if we want a clean Kixie-style app brand without copying their mark.</p>
+        <h2>A. Connected Wordmark</h2>
+        <p>Closest to a clean TruckX product identity: dark wordmark, blue connected X, and fleet-tech signal lines.</p>
+      </section>
+
+      <section class="option">
+        <div class="preview mark-preview">
+          <img src="/assets/truckx-mark.svg" alt="Option B TruckX extension mark">
+        </div>
+        <h2>B. Extension Mark</h2>
+        <p>Best for Chrome extension icons, favicon, and small square spaces where the full wordmark is too wide.</p>
       </section>
 
       <section class="option">
         <div class="preview">
-          <svg viewBox="0 0 420 104" role="img" aria-label="Option B Truckx logo">
-            <path d="M32 63c42-35 84-35 126 0s84 35 126 0" fill="none" stroke="#0f7b6c" stroke-width="9" stroke-linecap="round"/>
-            <text x="24" y="61" transform="skewX(-8)" fill="#111" font-family="Arial Black, Impact, Arial, sans-serif" font-size="52">TRUCKX</text>
-            <text x="29" y="92" fill="#66736d" font-family="Arial, sans-serif" font-size="13" font-weight="700" letter-spacing="3">ROUTE TO CONNECT</text>
+          <svg viewBox="0 0 430 108" role="img" aria-label="Option C TruckX route logo">
+            <defs>
+              <linearGradient id="cBlue" x1="0" x2="1" y1="0" y2="1">
+                <stop offset="0" stop-color="#18c7ee"/>
+                <stop offset="1" stop-color="#0879bd"/>
+              </linearGradient>
+            </defs>
+            <path d="M28 68c43-30 88-31 134-3 46 27 92 25 138-6" fill="none" stroke="#b9eaf6" stroke-width="10" stroke-linecap="round"/>
+            <text x="28" y="61" fill="#121821" font-family="Inter, Arial, sans-serif" font-size="52" font-weight="800">Truck</text>
+            <path d="M188 23 230 64" fill="none" stroke="url(#cBlue)" stroke-width="13" stroke-linecap="round"/>
+            <path d="M231 23 188 64" fill="none" stroke="#121821" stroke-width="13" stroke-linecap="round"/>
+            <text x="28" y="94" fill="#607083" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="750">ROUTE TO CONNECT</text>
           </svg>
         </div>
-        <h2>B. Route Signal</h2>
-        <p>More trucking/logistics focused. Good if you want the dialer to still feel connected to Truckx’s core business.</p>
+        <h2>C. Route Signal</h2>
+        <p>More trucking/logistics focused. Good if the dialer should feel closer to fleet operations than pure sales software.</p>
       </section>
 
       <section class="option">
         <div class="preview">
-          <svg viewBox="0 0 420 104" role="img" aria-label="Option C Truckx logo">
-            <rect x="20" y="17" width="70" height="70" rx="17" fill="#111"/>
-            <path d="M34 34h42v11H61v28H49V45H34V34Zm4 40 17-23h12L50 74H38Zm30-23 16 23H71L55 51h13Z" fill="#fff"/>
-            <text x="108" y="63" fill="#111" font-family="Arial Black, Impact, Arial, sans-serif" font-size="50">TRUCKX</text>
-            <text x="112" y="89" fill="#0f7b6c" font-family="Arial, sans-serif" font-size="13" font-weight="700" letter-spacing="2">AUTO DIALER</text>
+          <svg viewBox="0 0 430 108" role="img" aria-label="Option D TruckX compact logo">
+            <defs>
+              <linearGradient id="dBlue" x1="0" x2="1" y1="0" y2="1">
+                <stop offset="0" stop-color="#18c7ee"/>
+                <stop offset="1" stop-color="#0879bd"/>
+              </linearGradient>
+            </defs>
+            <rect x="24" y="18" width="68" height="68" rx="18" fill="#121821"/>
+            <path d="M43 36 73 68" fill="none" stroke="url(#dBlue)" stroke-width="10" stroke-linecap="round"/>
+            <path d="M73 36 43 68" fill="none" stroke="#fff" stroke-width="10" stroke-linecap="round"/>
+            <text x="108" y="61" fill="#121821" font-family="Inter, Arial, sans-serif" font-size="50" font-weight="800">TruckX</text>
+            <text x="110" y="90" fill="#0879bd" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="750">AUTO DIALER</text>
           </svg>
         </div>
-        <h2>C. App Icon First</h2>
-        <p>Strongest for Chrome extension and small UI spaces. The TX mark becomes the recognizable product icon.</p>
-      </section>
-
-      <section class="option">
-        <div class="preview">
-          <svg viewBox="0 0 420 104" role="img" aria-label="Option D Truckx logo">
-            <text x="28" y="67" transform="skewX(-12)" fill="#111" font-family="Arial Black, Impact, Arial, sans-serif" font-size="60">TRUCKX</text>
-            <circle cx="344" cy="45" r="24" fill="#ef3f3f"/>
-            <path d="M334 33h21v8h-7v21h-8V41h-6v-8Z" fill="#fff"/>
-            <path d="m334 63 11-14h8l-10 14h-9Zm19-14 10 14h-10l-9-14h9Z" fill="#fff"/>
-            <text x="31" y="96" fill="#66736d" font-family="Arial, sans-serif" font-size="13" font-weight="700" letter-spacing="3">POWER DIALING FOR LOGISTICS</text>
-          </svg>
-        </div>
-        <h2>D. Red Accent</h2>
-        <p>Most aggressive and closest in energy to the Kixie example, but still branded as Truckx.</p>
+        <h2>D. Compact Lockup</h2>
+        <p>Good for an admin portal header when you want the icon and wordmark together in a tighter space.</p>
       </section>
     </main>
   </body>

@@ -1,4 +1,4 @@
-# Truckx Auto Dialer Credential Guide
+# TruckX Auto Dialer Credential Guide
 
 This file lists the credentials needed to turn mock mode into live calling.
 
@@ -46,7 +46,7 @@ Each login is:
 username:password:role:hubspot_owner_id
 ```
 
-Use `admin` for an admin user. Use `agent` plus the HubSpot owner ID for an agent user. You can get the owner ID after clicking **Owners** in Truckx or from HubSpot owner settings/API.
+Use `admin` for an admin user. Use `agent` plus the HubSpot owner ID for an agent user. You can get the owner ID after clicking **Owners** in TruckX or from HubSpot owner settings/API.
 
 The newer invite flow means agents do not need manually created passwords. Keep an admin login for the portal, then invite agents from **Agents**. Invited agents activate through the Chrome extension and receive an extension token.
 
@@ -54,8 +54,18 @@ Optional email invitation delivery:
 
 ```text
 RESEND_API_KEY=...
-INVITE_FROM_EMAIL=Truckx Auto Dialer <dialer@yourdomain.com>
+INVITE_FROM_EMAIL=TruckX Auto Dialer <dialer@truckx.com>
 ```
+
+Where to get it:
+
+1. Create or open a Resend account.
+2. Add and verify the sending domain, ideally `truckx.com` or a sending subdomain your DNS team controls.
+3. Create an API key from the Resend API Keys dashboard.
+4. Copy the key immediately; Resend only shows the secret once.
+5. Add `RESEND_API_KEY` and `INVITE_FROM_EMAIL` in Render, then redeploy.
+
+A personal Gmail/Yahoo address should not be used as `INVITE_FROM_EMAIL`. Use a company-domain sender such as `dialer@truckx.com` or `no-reply@truckx.com` after the domain is verified. You can still make replies go to a personal or team inbox later with a reply-to setting if needed.
 
 Without these, the admin can copy the invite link from the Agents table and send it manually.
 
@@ -76,7 +86,7 @@ crm.objects.calls.read
 crm.objects.calls.write
 ```
 
-That is okay. HubSpot's current calls API documentation lists contact scopes for logging calls against contact records, so `crm.objects.contacts.write` is the important write permission for Truckx call logging.
+That is okay. HubSpot's current calls API documentation lists contact scopes for logging calls against contact records, so `crm.objects.contacts.write` is the important write permission for TruckX call logging.
 
 ## HubSpot Property Mapping
 
@@ -91,7 +101,7 @@ HUBSPOT_PROP_TIME_ZONE=time_zone
 HUBSPOT_PROP_LEAD_STATUS=hs_lead_status
 ```
 
-For the properties you mentioned, Truckx now defaults to these internal names:
+For the properties you mentioned, TruckX now defaults to these internal names:
 
 ```text
 last_call_outcome
@@ -118,9 +128,9 @@ MST
 PST
 ```
 
-Truckx converts those to the correct US local call windows internally, but the dashboard shows the short labels.
+TruckX converts those to the correct US local call windows internally, but the dashboard shows the short labels.
 
-By default Truckx only dials leads with these statuses:
+By default TruckX only dials leads with these statuses:
 
 ```text
 CALLABLE_LEAD_STATUSES=new,retry,no_answer
@@ -128,7 +138,7 @@ CALLABLE_LEAD_STATUSES=new,retry,no_answer
 
 Statuses like `Won`, `REJECTED`, `VOICEMAIL`, and blank statuses are blocked unless you intentionally add them to `CALLABLE_LEAD_STATUSES`.
 
-If you want Truckx to sync more than 100 contacts under one owner, set:
+If you want TruckX to sync more than 100 contacts under one owner, set:
 
 ```text
 HUBSPOT_SYNC_LIMIT=1000
@@ -192,7 +202,7 @@ For production, use your hosted app URL instead.
 
 ## HubSpot Webhook Settings
 
-HubSpot webhooks are optional for the first working version. Truckx can pull contacts from HubSpot when you click **Sync**.
+HubSpot webhooks are optional for the first working version. TruckX can pull contacts from HubSpot when you click **Sync**.
 
 If you want to enable HubSpot webhooks later, use this target URL:
 

@@ -1,4 +1,4 @@
-# Truckx Auto Dialer Architecture
+# TruckX Auto Dialer Architecture
 
 ## Goal
 
@@ -63,7 +63,7 @@ Real carriers need webhooks for answer, status, and machine-detection callbacks.
 ## Next Live Integration Steps
 
 1. Add HubSpot private app token and set `LEAD_SOURCE=hubspot`.
-2. Sync HubSpot owners into Truckx Auto Dialer.
+2. Sync HubSpot owners into TruckX Auto Dialer.
 3. Add carrier credentials and set `VOICE_PROVIDER=twilio` or `VOICE_PROVIDER=plivo`.
 4. Add purchased/verified US caller IDs to `CALLER_ID_NUMBERS`.
 5. Set `PUBLIC_BASE_URL` to a public HTTPS URL so the carrier can call the webhooks.

@@ -1,17 +1,17 @@
 :root {
-  --bg: #f7f8f4;
+  --bg: #f5f8fb;
   --panel: #ffffff;
-  --text: #1c2420;
-  --muted: #66736d;
-  --line: #dfe5dc;
-  --teal: #0f7b6c;
-  --teal-soft: #d9f0eb;
-  --amber: #a36200;
-  --amber-soft: #fff0d4;
+  --text: #121821;
+  --muted: #607083;
+  --line: #d8e2ea;
+  --teal: #0879bd;
+  --teal-soft: #e5f7fc;
+  --amber: #9a6500;
+  --amber-soft: #fff2d8;
   --rose: #b5384a;
-  --rose-soft: #ffe1e7;
-  --ink: #27302c;
-  --shadow: 0 14px 35px rgba(36, 47, 42, 0.08);
+  --rose-soft: #ffe6eb;
+  --ink: #121821;
+  --shadow: 0 14px 35px rgba(17, 30, 44, 0.08);
 }
 
 * {
@@ -34,7 +34,7 @@ body {
 .splash-screen {
   align-items: center;
   animation: splashFade 1.7s ease forwards;
-  background: #f3f5fa;
+  background: #f5f8fb;
   display: flex;
   inset: 0;
   justify-content: center;
@@ -99,8 +99,8 @@ body {
 }
 
 .nav-item.active {
-  background: #e8edf1;
-  color: #008ec3;
+  background: #e8f6fb;
+  color: #0879bd;
   font-weight: 700;
 }
 
@@ -124,7 +124,7 @@ button {
 }
 
 button:hover {
-  border-color: #b9c7bf;
+  border-color: #aec4d3;
 }
 
 button:disabled {
@@ -150,13 +150,13 @@ button:disabled {
 .tab-button {
   border: 0;
   border-radius: 6px;
-  color: #465271;
+  color: #46576a;
   padding: 8px 10px;
 }
 
 .tab-button.active {
-  background: #f2f5fb;
-  color: #008ec3;
+  background: #e8f6fb;
+  color: #0879bd;
 }
 
 h1,
@@ -196,7 +196,7 @@ h3 {
 .status-strip div {
   min-width: 92px;
   border: 1px solid var(--line);
-  background: #fbfcf8;
+  background: #ffffff;
   border-radius: 8px;
   padding: 10px 12px;
 }
@@ -360,7 +360,7 @@ select {
 .success-button {
   background: var(--teal-soft);
   color: var(--teal);
-  border-color: #a8d8cf;
+  border-color: #a8dced;
   font-weight: 700;
 }
 
@@ -424,13 +424,13 @@ select {
 
 .notice.success {
   background: var(--teal-soft);
-  border-color: #a8d8cf;
+  border-color: #a8dced;
   color: var(--teal);
 }
 
 .disposition-panel {
   align-items: center;
-  background: #fbfcf8;
+  background: #f8fbfd;
   border: 1px solid var(--line);
   border-radius: 8px;
   display: grid;
@@ -474,8 +474,8 @@ td {
 }
 
 th {
-  background: #f2f5ef;
-  color: #4f5b55;
+  background: #eef5f8;
+  color: #4c5e6f;
   font-size: 12px;
   position: sticky;
   top: 0;
@@ -515,7 +515,7 @@ tr:last-child td {
 .pill.ready {
   background: var(--teal-soft);
   color: var(--teal);
-  border-color: #a8d8cf;
+  border-color: #a8dced;
 }
 
 .pill.draft,
@@ -652,7 +652,7 @@ tr:last-child td {
 }
 
 .report-metrics span {
-  background: #f7f8f4;
+  background: #f5f8fb;
   border: 1px solid var(--line);
   border-radius: 7px;
   color: var(--ink);

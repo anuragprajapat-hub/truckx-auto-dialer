@@ -1,4 +1,4 @@
-# Truckx Auto Dialer
+# TruckX Auto Dialer
 
 This is a standalone autodialer prototype for a sales team calling US numbers. It is separate from the sales dashboard and starts in mock mode so the campaign flow can be tested without spending money on calls.
 
@@ -13,7 +13,7 @@ This is a standalone autodialer prototype for a sales team calling US numbers. I
 - Updates lead status in the local store.
 - Shows live campaign, queue, active calls, call log, and agent reports in the browser.
 - Adds an admin-style portal with PowerLists, Reports, Call History, Agents, Live, and Setup sections.
-- Adds Truckx logo assets, favicon, extension branding, and a startup splash screen.
+- Adds TruckX logo assets, favicon, extension branding, and a startup splash screen.
 - Lets admins invite agents by name/email and HubSpot owner.
 - Includes a starter Chrome extension under `extension/` for agent setup and future HubSpot page integration.
 - Includes starter adapters for Twilio and Plivo so real calling can be wired next.
@@ -78,14 +78,16 @@ Admins can invite an agent from the **Agents** page:
 4. Select the matching HubSpot owner.
 5. Click **Send Invitation**.
 
-If email sending is not configured, Truckx creates an invite link and shows **Copy invite** in the Agents table. If email sending is configured, the app emails the setup link automatically.
+If email sending is not configured, TruckX creates an invite link and shows **Copy invite** in the Agents table. If email sending is configured, the app emails the setup link automatically.
 
 Optional email sending uses Resend:
 
 ```text
 RESEND_API_KEY=...
-INVITE_FROM_EMAIL=Truckx Auto Dialer <dialer@yourdomain.com>
+INVITE_FROM_EMAIL=TruckX Auto Dialer <dialer@truckx.com>
 ```
+
+For real invites, verify the sending domain in Resend first. A personal Gmail/Yahoo address cannot be used as the `from` address unless that exact domain is verified in Resend; for TruckX, use a sender on the company domain such as `dialer@truckx.com` or `no-reply@truckx.com` after DNS verification.
 
 The starter Chrome extension lives in:
 
@@ -111,7 +113,7 @@ Open this page after deployment to compare logo directions:
 https://truckx-auto-dialer.onrender.com/logo-options.html
 ```
 
-The current default is **A. TX Badge Wordmark**.
+The current default is **A. Connected Wordmark**.
 
 Credential instructions are in [docs/GET_CREDENTIALS.md](docs/GET_CREDENTIALS.md).
 

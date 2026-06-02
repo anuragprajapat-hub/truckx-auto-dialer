@@ -69,7 +69,7 @@ export const config = {
   },
   email: {
     resendApiKey: process.env.RESEND_API_KEY || '',
-    from: process.env.INVITE_FROM_EMAIL || 'Truckx Auto Dialer <noreply@truckx.local>'
+    from: process.env.INVITE_FROM_EMAIL || 'TruckX Auto Dialer <noreply@truckx.local>'
   },
   leadSource: process.env.LEAD_SOURCE || 'mock',
   voiceProvider: process.env.VOICE_PROVIDER || 'mock',

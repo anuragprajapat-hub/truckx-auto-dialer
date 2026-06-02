@@ -1,4 +1,4 @@
-# Truckx Auto Dialer Costs And Compliance Notes
+# TruckX Auto Dialer Costs And Compliance Notes
 
 ## Expected Costs
 
@@ -35,7 +35,7 @@ The app code can be owned by you, but phone infrastructure is not free.
 
 ## Predictive Dialer Guardrails
 
-Truckx has a conservative first version of predictive behavior:
+TruckX has a conservative first version of predictive behavior:
 
 - The campaign can dial multiple numbers at once through `Lines`.
 - If voicemail is detected, the lead is marked voicemail and the dialer moves on.

@@ -176,7 +176,7 @@ export async function createHubSpotCallLog(call, lead, outcome) {
   const durationMs = Math.max(0, completedAt.getTime() - startedAt.getTime());
   const properties = {
     hs_timestamp: startedAt.toISOString(),
-    hs_call_title: `Truckx Auto Dialer: ${lead.name || lead.phone}`,
+    hs_call_title: `TruckX Auto Dialer: ${lead.name || lead.phone}`,
     hs_call_body: callOutcomeBody(outcome),
     hs_call_direction: 'OUTBOUND',
     hs_call_status: 'COMPLETED',
