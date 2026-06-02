@@ -56,6 +56,7 @@ function isProtectedPath(pathname) {
   if (pathname.startsWith('/api/invites/')) return false;
   if (pathname.startsWith('/extension/')) return false;
   if (pathname === '/agent' || pathname.startsWith('/agent/')) return false;
+  if (pathname === '/favicon.ico') return false;
   if (pathname.startsWith('/assets/')) return false;
   if (pathname.startsWith('/webhooks/')) return false;
   return true;
@@ -683,6 +684,12 @@ const server = http.createServer(async (request, response) => {
 
     if (request.method === 'GET' && url.pathname === '/agent') {
       response.writeHead(302, { Location: `/agent/${url.search || ''}` });
+      response.end();
+      return;
+    }
+
+    if (request.method === 'GET' && url.pathname === '/favicon.ico') {
+      response.writeHead(302, { Location: '/assets/truckx-mark.svg' });
       response.end();
       return;
     }
