@@ -90,6 +90,9 @@ function initialToken() {
 }
 
 async function exchangeInviteToken(inviteToken) {
+  await fetchJson(`/api/invites/${encodeURIComponent(inviteToken)}`, {
+    headers: {}
+  });
   const body = await fetchJson(`/api/invites/${encodeURIComponent(inviteToken)}/accept`, {
     method: 'POST',
     body: JSON.stringify({})
@@ -122,6 +125,16 @@ function setConnectBusy(isBusy, message = '') {
   elements.manualConnectButton.disabled = isBusy;
   elements.manualConnectButton.textContent = isBusy ? 'Connecting...' : 'Connect';
   elements.setupMessage.textContent = message;
+}
+
+function setupErrorMessage(error) {
+  if (error.message === 'Invite not found') {
+    return 'Invite not found. Ask admin to create a new invite and use the new setup token.';
+  }
+  if (error.message === 'Invite is no longer active') {
+    return 'This invite was already used. Ask admin for the latest setup link, or open the dialer from the connected extension.';
+  }
+  return error.message;
 }
 
 function showAgent() {
@@ -311,9 +324,7 @@ elements.manualConnectButton.addEventListener('click', async () => {
     setNotice('Connected.', 'success');
   } catch (error) {
     localStorage.removeItem(TOKEN_KEY);
-    showSetup(error.message === 'Invite is no longer active'
-      ? 'This invite was already used. Ask admin for the latest setup link, or open the dialer from the connected extension.'
-      : error.message);
+    showSetup(setupErrorMessage(error));
   } finally {
     window.clearTimeout(slowMessageTimer);
     setConnectBusy(false, elements.setupMessage.textContent);
@@ -376,9 +387,7 @@ if (!bootToken) {
   setConnectBusy(true, 'Connecting to TruckX Auto Dialer...');
   connectWithToken(bootToken).catch((error) => {
     localStorage.removeItem(TOKEN_KEY);
-    showSetup(error.message === 'Invite is no longer active'
-      ? 'This invite was already used. Ask admin for the latest setup link, or open the dialer from the connected extension.'
-      : error.message);
+    showSetup(setupErrorMessage(error));
   }).finally(() => {
     setConnectBusy(false, elements.setupMessage.textContent);
   });

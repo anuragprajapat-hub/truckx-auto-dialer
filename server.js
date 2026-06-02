@@ -402,7 +402,14 @@ async function handleApi(request, response, url) {
   const inviteAcceptMatch = url.pathname.match(/^\/api\/invites\/([^/]+)\/accept$/);
   if (request.method === 'POST' && inviteAcceptMatch) {
     const body = await parseBody(request);
-    const result = acceptAgentInvite(inviteAcceptMatch[1], body);
+    let result;
+    try {
+      result = acceptAgentInvite(inviteAcceptMatch[1], body);
+    } catch (error) {
+      const status = error.message === 'Invite not found' || error.message === 'Agent not found' ? 404 : 400;
+      sendJson(response, { error: error.message }, status);
+      return true;
+    }
     sendJson(response, {
       token: result.token,
       agent: {
