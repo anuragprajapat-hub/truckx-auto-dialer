@@ -44,6 +44,7 @@ const elements = {
   refreshButton: document.querySelector('#refreshButton'),
   startButton: document.querySelector('#startButton'),
   stopButton: document.querySelector('#stopButton'),
+  deleteCampaignButton: document.querySelector('#deleteCampaignButton'),
   syncHubSpotButton: document.querySelector('#syncHubSpotButton')
 };
 
@@ -178,8 +179,13 @@ function setNotice(message, type = 'info') {
 }
 
 function selectedCampaign() {
-  if (!state?.campaigns?.length) return null;
-  return state.campaigns.find((campaign) => campaign.id === selectedCampaignId) || state.campaigns[0];
+  const campaigns = activeCampaigns();
+  if (!campaigns.length) return null;
+  return campaigns.find((campaign) => campaign.id === selectedCampaignId) || campaigns[0];
+}
+
+function activeCampaigns() {
+  return (state?.campaigns || []).filter((campaign) => campaign.status !== 'deleted' && !campaign.deletedAt);
 }
 
 function visibleOwners() {
@@ -218,7 +224,7 @@ function renderStats() {
   const dialerSeconds = reports.reduce((sum, report) => sum + Number(report.dialerSeconds || 0), 0);
 
   elements.systemLine.textContent = `Provider: ${state.settings.voiceProvider} | Lead source: ${state.settings.leadSource} | Caller IDs: ${state.settings.callerIdNumbers.length}`;
-  elements.statCampaigns.textContent = state.campaigns.length;
+  elements.statCampaigns.textContent = activeCampaigns().length;
   elements.statDials.textContent = state.calls.length;
   elements.statActive.textContent = activeCalls.length;
   elements.statConnected.textContent = connected;
@@ -227,7 +233,8 @@ function renderStats() {
 }
 
 function renderCampaigns() {
-  if (!state.campaigns.length) {
+  const campaigns = activeCampaigns();
+  if (!campaigns.length) {
     elements.campaignList.innerHTML = '<div class="empty">No campaigns yet</div>';
     return;
   }
@@ -235,7 +242,7 @@ function renderCampaigns() {
   const selected = selectedCampaign();
   selectedCampaignId = selected.id;
 
-  elements.campaignList.innerHTML = state.campaigns
+  elements.campaignList.innerHTML = campaigns
     .map((campaign) => {
       const owner = state.owners.find((item) => item.id === campaign.ownerId);
       const active = campaign.id === selectedCampaignId ? 'active' : '';
@@ -264,6 +271,7 @@ function renderSelectedCampaign() {
     elements.leadRows.innerHTML = '<tr><td colspan="6">Create a campaign to load the queue.</td></tr>';
     elements.startButton.disabled = true;
     elements.stopButton.disabled = true;
+    elements.deleteCampaignButton.disabled = true;
     elements.syncHubSpotButton.disabled = true;
     return;
   }
@@ -276,6 +284,7 @@ function renderSelectedCampaign() {
   elements.activeCampaignMeta.textContent = `${owner?.name || 'Owner'} | ${campaign.status} | ${campaignTarget(campaign)} | ${campaign.maxParallelCalls} lines | ${campaign.callWindowStart}-${campaign.callWindowEnd} local`;
   elements.startButton.disabled = ['running', 'connected'].includes(campaign.status);
   elements.stopButton.disabled = !['running', 'connected', 'paused'].includes(campaign.status);
+  elements.deleteCampaignButton.disabled = false;
   elements.syncHubSpotButton.disabled = state.settings.leadSource !== 'hubspot';
 
   if (!campaignLeads.length) {
@@ -695,6 +704,22 @@ elements.stopButton.addEventListener('click', async () => {
     await loadState();
   } catch (error) {
     setNotice(`Stop failed: ${error.message}`, 'error');
+  }
+});
+
+elements.deleteCampaignButton.addEventListener('click', async () => {
+  const campaign = selectedCampaign();
+  if (!campaign) return;
+  const confirmed = window.confirm(`Delete PowerList "${campaign.name}"? This removes it from the dialer but keeps old call history.`);
+  if (!confirmed) return;
+
+  try {
+    await api(`/api/campaigns/${campaign.id}`, { method: 'DELETE' });
+    selectedCampaignId = '';
+    setNotice('PowerList deleted.', 'success');
+    await loadState();
+  } catch (error) {
+    setNotice(`Delete failed: ${error.message}`, 'error');
   }
 });
 

@@ -6,6 +6,7 @@ import pg from 'pg';
 const storePath = path.resolve(process.cwd(), 'data', 'store.json');
 const storeId = 'default';
 const { Pool } = pg;
+const ACTIVE_CALL_STATUSES = new Set(['dialing', 'queued', 'ringing', 'in_progress']);
 
 let cachedStore = null;
 let pool = null;
@@ -567,6 +568,43 @@ export function setCampaignStatus(campaignId, status) {
       }
       campaign.currentSessionId = '';
     }
+    return campaign;
+  });
+}
+
+export function deleteCampaign(campaignId) {
+  return updateStore((data) => {
+    const campaign = data.campaigns.find((item) => item.id === campaignId);
+    if (!campaign) throw new Error('Campaign not found');
+
+    const now = new Date().toISOString();
+    campaign.status = 'deleted';
+    campaign.deletedAt = now;
+    campaign.stoppedAt = now;
+
+    const session = data.sessions.find((item) => item.id === campaign.currentSessionId && !item.endedAt);
+    if (session) {
+      session.endedAt = now;
+      session.endedReason = 'deleted';
+    }
+    campaign.currentSessionId = '';
+
+    for (const call of data.calls) {
+      if (call.campaignId === campaign.id && ACTIVE_CALL_STATUSES.has(call.status)) {
+        call.status = 'canceled';
+        call.completedAt = now;
+        call.outcome = 'canceled_powerlist_deleted';
+      }
+    }
+
+    data.events.unshift({
+      id: randomUUID(),
+      type: 'campaign_deleted',
+      message: `Deleted PowerList ${campaign.name}`,
+      details: { campaignId: campaign.id },
+      createdAt: now
+    });
+
     return campaign;
   });
 }

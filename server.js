@@ -15,6 +15,7 @@ import {
   closeStore,
   createAgentInvite,
   createCampaign,
+  deleteCampaign,
   disconnectAgent,
   getAgentInvite,
   getStore,
@@ -224,7 +225,7 @@ function ownerIdsForUser(data, user) {
 function visibleState(data, user) {
   const ownerIds = ownerIdsForUser(data, user);
   const campaignIds = new Set((data.campaigns || [])
-    .filter((campaign) => ownerIds.has(campaign.ownerId))
+    .filter((campaign) => ownerIds.has(campaign.ownerId) && campaign.status !== 'deleted' && !campaign.deletedAt)
     .map((campaign) => campaign.id));
 
   if (user?.role === 'admin') {
@@ -234,7 +235,7 @@ function visibleState(data, user) {
   return {
     ...data,
     owners: data.owners.filter((owner) => ownerIds.has(owner.id)),
-    campaigns: data.campaigns.filter((campaign) => campaignIds.has(campaign.id)),
+    campaigns: data.campaigns.filter((campaign) => campaignIds.has(campaign.id) && campaign.status !== 'deleted' && !campaign.deletedAt),
     leads: data.leads.filter((lead) => ownerIds.has(lead.ownerId)),
     calls: data.calls.filter((call) => ownerIds.has(call.ownerId) || campaignIds.has(call.campaignId)),
     sessions: data.sessions.filter((session) => ownerIds.has(session.ownerId)),
@@ -361,6 +362,10 @@ async function handleApi(request, response, url) {
 
   if (request.method === 'GET' && url.pathname === '/api/state') {
     const data = visibleState(getStore(), request.user);
+    const reportData = {
+      ...data,
+      campaigns: data.campaigns.filter((campaign) => campaign.status !== 'deleted' && !campaign.deletedAt)
+    };
     sendJson(response, {
       appName: 'TruckX Auto Dialer',
       currentUser: {
@@ -385,7 +390,7 @@ async function handleApi(request, response, url) {
       agents: safeAgents(data.agents || []),
       agentInvites: request.user?.role === 'admin' ? (data.agentInvites || []).slice(0, 100) : [],
       reports: {
-        agents: buildAgentReports(data)
+        agents: buildAgentReports(reportData)
       },
       dncNumbers: data.dncNumbers || [],
       calls: data.calls.slice(0, 100),
@@ -570,6 +575,14 @@ async function handleApi(request, response, url) {
     return true;
   }
 
+  const deleteCampaignMatch = url.pathname.match(/^\/api\/campaigns\/([^/]+)$/);
+  if (request.method === 'DELETE' && deleteCampaignMatch) {
+    if (requireAdmin(request, response)) return true;
+    const campaign = deleteCampaign(deleteCampaignMatch[1]);
+    sendJson(response, { deleted: true, campaign });
+    return true;
+  }
+
   const startCampaignId = campaignIdFromPath(url.pathname, 'start');
   if (request.method === 'POST' && startCampaignId) {
     assertCampaignAccess(startCampaignId, request.user);
@@ -614,7 +627,11 @@ async function handleApi(request, response, url) {
 
   if (request.method === 'GET' && url.pathname === '/api/reports/agents') {
     const data = visibleState(getStore(), request.user);
-    sendJson(response, { agents: buildAgentReports(data) });
+    const reportData = {
+      ...data,
+      campaigns: data.campaigns.filter((campaign) => campaign.status !== 'deleted' && !campaign.deletedAt)
+    };
+    sendJson(response, { agents: buildAgentReports(reportData) });
     return true;
   }
 
