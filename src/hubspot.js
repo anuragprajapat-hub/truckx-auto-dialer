@@ -2,11 +2,29 @@ import { config } from './config.js';
 import { displayTimeZone, normalizeTimeZone } from './timeZones.js';
 
 const HUBSPOT_BASE = 'https://api.hubapi.com';
+const HUBSPOT_RETRY_STATUSES = new Set([429, 500, 502, 503, 504]);
+const HUBSPOT_MAX_RETRIES = 4;
+
 function hasHubSpotToken() {
   return Boolean(config.hubspot.privateAppToken);
 }
 
-async function hubspotFetch(path, options = {}) {
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function retryDelayMs(response, attempt) {
+  const retryAfter = response.headers.get('retry-after');
+  if (retryAfter) {
+    const seconds = Number(retryAfter);
+    if (Number.isFinite(seconds)) return Math.max(1000, seconds * 1000);
+    const retryAt = new Date(retryAfter).getTime();
+    if (Number.isFinite(retryAt)) return Math.max(1000, retryAt - Date.now());
+  }
+  return Math.min(12000, 1000 * 2 ** attempt);
+}
+
+async function hubspotFetch(path, options = {}, attempt = 0) {
   if (!hasHubSpotToken()) {
     throw new Error('Missing HUBSPOT_PRIVATE_APP_TOKEN');
   }
@@ -24,6 +42,10 @@ async function hubspotFetch(path, options = {}) {
   const body = text ? JSON.parse(text) : {};
 
   if (!response.ok) {
+    if (HUBSPOT_RETRY_STATUSES.has(response.status) && attempt < HUBSPOT_MAX_RETRIES) {
+      await sleep(retryDelayMs(response, attempt));
+      return hubspotFetch(path, options, attempt + 1);
+    }
     throw new Error(body.message || `HubSpot request failed with ${response.status}`);
   }
 
@@ -140,6 +162,7 @@ export async function fetchContactsForOwner(owner, limit = config.hubspot.syncLi
 
     contacts.push(...(result.results || []));
     after = result.paging?.next?.after || '';
+    if (after) await sleep(350);
   } while (after && contacts.length < limit);
 
   return contacts.map((contact) => mapContact(contact, owner));
