@@ -113,6 +113,11 @@ openAppButton.addEventListener('click', async () => {
 });
 
 disconnectButton.addEventListener('click', async () => {
+  try {
+    await api('/api/extension/logout', { method: 'POST' });
+  } catch {
+    // The local token may already be expired; still clear this Chrome profile.
+  }
   await storageRemove(['authToken', 'agent']);
   showSetup('Disconnected.');
 });

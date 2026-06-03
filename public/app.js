@@ -508,6 +508,11 @@ function renderAgents() {
               </div>
             `
             : '<span class="muted">No invite</span>';
+          const canDisconnect = agent.extensionStatus !== 'disconnected'
+            && (agent.extensionStatus === 'connected' || agent.status === 'active' || Boolean(agent.lastSeenAt));
+          const actionCell = canDisconnect
+            ? `<button class="danger-outline-button" type="button" data-disconnect-agent="${escapeHtml(agent.id)}">Disconnect</button>`
+            : '<span class="muted">No active session</span>';
           return `
             <tr>
               <td>${escapeHtml(agent.name)}</td>
@@ -516,16 +521,33 @@ function renderAgents() {
               <td>${statusPill(agent.status || 'invited')}</td>
               <td>${statusPill(agent.extensionStatus || 'not_installed')}</td>
               <td>${inviteCell}</td>
+              <td>${actionCell}</td>
             </tr>
           `;
         })
         .join('')
-    : '<tr><td colspan="6">No invited agents yet.</td></tr>';
+    : '<tr><td colspan="7">No invited agents yet.</td></tr>';
 
   document.querySelectorAll('[data-copy-invite]').forEach((button) => {
     button.addEventListener('click', async () => {
       await copyText(button.dataset.copyInvite);
       setNotice('Invite link copied.', 'success');
+    });
+  });
+
+  document.querySelectorAll('[data-disconnect-agent]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const agentId = button.dataset.disconnectAgent;
+      button.disabled = true;
+      try {
+        await api(`/api/admin/agents/${encodeURIComponent(agentId)}/disconnect`, { method: 'POST' });
+        setNotice('Agent disconnected. Send a new invite if they need to reconnect.', 'success');
+        await loadState();
+      } catch (error) {
+        setNotice(`Disconnect failed: ${error.message}`, 'error');
+      } finally {
+        button.disabled = false;
+      }
     });
   });
 }

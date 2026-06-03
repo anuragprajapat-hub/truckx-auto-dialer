@@ -12,6 +12,7 @@ const elements = {
   agentView: document.querySelector('#agentView'),
   manualToken: document.querySelector('#manualToken'),
   manualConnectButton: document.querySelector('#manualConnectButton'),
+  logoutButton: document.querySelector('#logoutButton'),
   setupMessage: document.querySelector('#setupMessage'),
   agentName: document.querySelector('#agentName'),
   agentEmail: document.querySelector('#agentEmail'),
@@ -143,6 +144,16 @@ function setupErrorMessage(error) {
 function showAgent() {
   elements.setupView.hidden = true;
   elements.agentView.hidden = false;
+}
+
+function logout(message = 'Logged out. Paste a setup token to connect again.') {
+  authToken = '';
+  state = null;
+  snapshot = null;
+  selectedCampaignId = '';
+  localStorage.removeItem(TOKEN_KEY);
+  elements.manualToken.value = '';
+  showSetup(message);
 }
 
 function setNotice(message, type = 'info') {
@@ -380,6 +391,19 @@ elements.dispositionForm.addEventListener('submit', async (event) => {
     await loadState();
   } catch (error) {
     setNotice(error.message, 'error');
+  }
+});
+
+elements.logoutButton.addEventListener('click', async () => {
+  const token = authToken;
+  try {
+    if (token) {
+      await api('/api/extension/logout', { method: 'POST' });
+    }
+  } catch {
+    // Local logout still matters even if the server session already expired.
+  } finally {
+    logout();
   }
 });
 

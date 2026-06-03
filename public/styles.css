@@ -375,6 +375,13 @@ select {
   font-weight: 700;
 }
 
+.danger-outline-button {
+  background: #ffffff;
+  color: var(--rose);
+  border-color: #efb5bf;
+  font-weight: 700;
+}
+
 .campaign-list {
   display: grid;
   gap: 8px;
@@ -543,6 +550,7 @@ tr:last-child td {
 .pill.exhausted,
 .pill.canceled,
 .pill.canceled_after_connect,
+.pill.disconnected,
 .pill.missing {
   background: var(--rose-soft);
   color: var(--rose);

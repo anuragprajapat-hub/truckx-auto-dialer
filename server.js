@@ -15,6 +15,7 @@ import {
   closeStore,
   createAgentInvite,
   createCampaign,
+  disconnectAgent,
   getAgentInvite,
   getStore,
   initStore,
@@ -480,6 +481,23 @@ async function handleApi(request, response, url) {
     return true;
   }
 
+  const disconnectAgentMatch = url.pathname.match(/^\/api\/admin\/agents\/([^/]+)\/disconnect$/);
+  if (request.method === 'POST' && disconnectAgentMatch) {
+    if (requireAdmin(request, response)) return true;
+    const agent = disconnectAgent(disconnectAgentMatch[1], 'admin_disconnect');
+    sendJson(response, {
+      agent: {
+        id: agent.id,
+        name: agent.name,
+        email: agent.email,
+        status: agent.status,
+        extensionStatus: agent.extensionStatus,
+        disconnectedAt: agent.disconnectedAt
+      }
+    });
+    return true;
+  }
+
   if (request.method === 'GET' && url.pathname === '/api/extension/me') {
     if (!request.user?.agentId) {
       sendJson(response, { error: 'Extension token required' }, 401);
@@ -495,6 +513,16 @@ async function handleApi(request, response, url) {
         lastSeenAt: agent.lastSeenAt
       }
     });
+    return true;
+  }
+
+  if (request.method === 'POST' && url.pathname === '/api/extension/logout') {
+    if (!request.user?.agentId) {
+      sendJson(response, { error: 'Extension token required' }, 401);
+      return true;
+    }
+    disconnectAgent(request.user.agentId, 'agent_logout');
+    sendJson(response, { ok: true });
     return true;
   }
 

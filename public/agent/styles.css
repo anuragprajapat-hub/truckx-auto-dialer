@@ -153,8 +153,21 @@ label {
   justify-items: end;
 }
 
+.topbar-actions {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+}
+
 .agent-lockup strong {
   color: var(--text);
+}
+
+.ghost-button {
+  background: #ffffff;
+  border-color: var(--line);
+  color: var(--text);
+  font-weight: 700;
 }
 
 .stat-grid {
@@ -335,6 +348,7 @@ tr:last-child td {
 .pill.failed,
 .pill.do_not_call,
 .pill.canceled,
+.pill.disconnected,
 .pill.missing {
   background: var(--rose-soft);
   border-color: #efb5bf;
@@ -387,6 +401,16 @@ tr:last-child td {
   .topbar {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .topbar-actions {
+    align-items: flex-start;
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .ghost-button {
+    width: 100%;
   }
 
   .agent-lockup {

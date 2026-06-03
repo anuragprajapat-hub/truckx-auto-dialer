@@ -512,6 +512,26 @@ export function touchAgent(agentId) {
   });
 }
 
+export function disconnectAgent(agentId, reason = 'manual_disconnect') {
+  return updateStore((data) => {
+    const agent = data.agents.find((item) => item.id === agentId);
+    if (!agent) throw new Error('Agent not found');
+    const now = new Date().toISOString();
+    agent.apiToken = '';
+    agent.extensionStatus = 'disconnected';
+    agent.disconnectedAt = now;
+    agent.updatedAt = now;
+    data.events.unshift({
+      id: randomUUID(),
+      type: 'agent_disconnected',
+      message: `${agent.name} disconnected`,
+      details: { agentId: agent.id, email: agent.email, reason },
+      createdAt: now
+    });
+    return agent;
+  });
+}
+
 export function setCampaignStatus(campaignId, status) {
   return updateStore((data) => {
     const campaign = data.campaigns.find((item) => item.id === campaignId);
