@@ -11,6 +11,10 @@ function authHeader() {
   return `Basic ${token}`;
 }
 
+function plivoNumber(phone) {
+  return String(phone || '').replace(/^\+/, '');
+}
+
 export function createPlivoProvider() {
   return {
     name: 'plivo',
@@ -18,8 +22,8 @@ export function createPlivoProvider() {
       assertPlivoConfig();
 
       const body = {
-        from: callerIdNumber || config.callerIdNumber,
-        to: lead.phone,
+        from: plivoNumber(callerIdNumber || config.callerIdNumber),
+        to: plivoNumber(lead.phone),
         answer_url: `${config.publicBaseUrl}/webhooks/plivo/answer?campaignId=${encodeURIComponent(campaign.id)}&leadId=${encodeURIComponent(lead.id)}`,
         answer_method: 'POST',
         hangup_url: `${config.publicBaseUrl}/webhooks/plivo/status`,

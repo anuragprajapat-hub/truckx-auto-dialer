@@ -121,6 +121,10 @@ function escapeXml(value) {
     .replaceAll("'", '&apos;');
 }
 
+function plivoNumber(phone) {
+  return String(phone || '').replace(/^\+/, '');
+}
+
 function setupStatus() {
   const publicUrl = config.publicBaseUrl || '';
   const isPublicWebhookUrl = publicUrl.startsWith('https://') && !publicUrl.includes('localhost') && !publicUrl.includes('127.0.0.1');
@@ -715,7 +719,7 @@ async function handleWebhooks(request, response, url) {
       '<?xml version="1.0" encoding="UTF-8"?>',
       '<Response>',
       '<Speak>Please hold while we connect your call.</Speak>',
-      `<Dial callerId="${escapeXml(details.callerIdNumber)}"><Number>${escapeXml(details.agentPhone)}</Number></Dial>`,
+      `<Dial callerId="${escapeXml(plivoNumber(details.callerIdNumber))}"><Number>${escapeXml(plivoNumber(details.agentPhone))}</Number></Dial>`,
       '</Response>'
     ].join(''));
     return true;
