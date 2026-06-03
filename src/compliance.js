@@ -55,6 +55,10 @@ export function evaluateLeadForDial(lead, campaign, context = {}) {
     return { allowed: false, reason: 'Lead is marked do not call' };
   }
 
+  if (lead.status === 'provider_error') {
+    return { allowed: false, reason: `Provider error: ${lead.lastProviderError || 'Call provider rejected the request'}` };
+  }
+
   if (!lead.consent) {
     return { allowed: false, reason: 'Missing consent flag' };
   }

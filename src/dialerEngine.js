@@ -152,18 +152,26 @@ export class DialerEngine {
     }
 
     const attempt = Number(lead.attempts || 0) + 1;
-    const patchedLead = updateLead(lead.id, {
+    const dialLead = {
+      ...lead,
       phone: allowed.phone,
       attempts: attempt,
       status: 'dialing'
-    });
+    };
 
     try {
-      const callerIdNumber = selectCallerIdNumber(patchedLead, campaign, attempt);
+      const callerIdNumber = selectCallerIdNumber(dialLead, campaign, attempt);
       const providerCall = await this.voiceProvider.createOutboundCall({
-        lead: patchedLead,
+        lead: dialLead,
         campaign,
         callerIdNumber
+      });
+
+      updateLead(lead.id, {
+        phone: allowed.phone,
+        attempts: attempt,
+        status: 'dialing',
+        lastProviderError: ''
       });
 
       const call = addCall({
@@ -187,8 +195,10 @@ export class DialerEngine {
       });
     } catch (error) {
       updateLead(lead.id, {
-        status: 'retry',
-        lastOutcome: 'provider_error'
+        phone: allowed.phone,
+        status: 'provider_error',
+        lastOutcome: 'provider_error',
+        lastProviderError: error.message
       });
       addEvent('call_failed_to_start', error.message, {
         campaignId: campaign.id,
