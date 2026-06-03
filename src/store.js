@@ -332,6 +332,9 @@ export function createCampaign(input) {
 
 export function upsertOwners(owners) {
   return updateStore((data) => {
+    if (owners.length) {
+      data.owners = data.owners.filter((owner) => !String(owner.id || '').startsWith('owner_demo_'));
+    }
     const byHubspotOwnerId = new Map(data.owners.map((owner) => [owner.hubspotOwnerId, owner]));
     for (const incoming of owners) {
       const existing = byHubspotOwnerId.get(incoming.hubspotOwnerId);

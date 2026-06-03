@@ -182,16 +182,29 @@ function selectedCampaign() {
   return state.campaigns.find((campaign) => campaign.id === selectedCampaignId) || state.campaigns[0];
 }
 
+function visibleOwners() {
+  const owners = state.owners || [];
+  const realOwners = owners.filter((owner) => !String(owner.id || '').startsWith('owner_demo_'));
+  return realOwners.length ? realOwners : owners;
+}
+
 function renderOwners() {
-  const current = elements.ownerSelect.value;
-  const ownerOptions = state.owners
+  const currentPowerListOwner = elements.ownerSelect.value;
+  const currentAgentOwner = elements.agentOwnerSelect.value;
+  const owners = visibleOwners();
+  const ownerOptions = owners
     .map((owner) => `<option value="${escapeHtml(owner.id)}">${escapeHtml(owner.name)}</option>`)
     .join('');
   elements.ownerSelect.innerHTML = ownerOptions;
   elements.agentOwnerSelect.innerHTML = ownerOptions;
-  if (current) elements.ownerSelect.value = current;
+  if (owners.some((owner) => owner.id === currentPowerListOwner)) {
+    elements.ownerSelect.value = currentPowerListOwner;
+  }
+  if (owners.some((owner) => owner.id === currentAgentOwner)) {
+    elements.agentOwnerSelect.value = currentAgentOwner;
+  }
 
-  const owner = state.owners.find((item) => item.id === elements.ownerSelect.value);
+  const owner = owners.find((item) => item.id === elements.ownerSelect.value);
   if (owner && !document.querySelector('#agentPhone').value) {
     document.querySelector('#agentPhone').value = owner.agentPhone || '';
   }
