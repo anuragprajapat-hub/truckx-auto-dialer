@@ -171,12 +171,12 @@ function renderQueueHealth(leads, campaign) {
   const agentLineConnected = campaign.status === 'running' && session?.agentConnectedAt;
   const actionClass = agentLineConnecting || agentLineConnected || summary.ready ? 'ready' : 'blocked';
   const actionTitle = agentLineConnecting
-    ? 'Calling agent line'
+    ? 'Connecting agent audio'
     : agentLineConnected
-      ? 'Agent line connected'
+      ? 'Agent audio connected'
       : summary.ready ? 'Ready to start' : 'Needs attention';
   const actionText = agentLineConnecting
-    ? 'Agent must pick up before customer dialing begins.'
+    ? 'Customer dialing starts after the agent audio session connects.'
     : agentLineConnected
       ? 'Agent remains connected while TruckX dials customers one by one.'
       : nextQueueAction(summary);

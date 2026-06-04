@@ -14,6 +14,7 @@ This is a standalone autodialer prototype for a sales team calling US numbers. I
 - Shows live campaign, queue, active calls, call log, and agent reports in the browser.
 - Adds an admin-style portal with PowerLists, Reports, Call History, Agents, Live, and Setup sections.
 - Adds an agent-only dialer portal where agents can use assigned PowerLists, start/stop dialing, see calls, and save after-call lead status.
+- Supports browser softphone mode so the agent can click Start, connect audio in Chrome, and stay connected while TruckX dials customers.
 - Adds TruckX logo assets, favicon, extension branding, and a startup splash screen.
 - Lets admins invite agents by name/email and HubSpot owner.
 - Includes a starter Chrome extension under `extension/` for agent setup and future HubSpot page integration.
@@ -54,6 +55,33 @@ APP_PASSWORD=choose-a-strong-password
 For local real-call testing, the voice provider must reach your webhook URLs. That means `PUBLIC_BASE_URL` needs a public HTTPS URL, not plain localhost.
 
 Set `APP_PASSWORD` before syncing real HubSpot contacts into a public deployment. Without it, the dashboard and API are public.
+
+### Browser Agent Mode
+
+Use browser mode when you do not want the agent's Zoom/mobile phone to ring. In this mode the agent's Chrome tab becomes the phone:
+
+```text
+VOICE_PROVIDER=plivo
+AGENT_CONNECTION_MODE=browser
+PLIVO_AUTH_ID=...
+PLIVO_AUTH_TOKEN=...
+PLIVO_BROWSER_USERNAME=...
+PLIVO_BROWSER_PASSWORD=...
+PLIVO_BROWSER_DIAL_TARGET=truckx-agent@phone.plivo.com
+```
+
+In Plivo, create an XML Application for the browser endpoint:
+
+```text
+Answer URL: https://truckx-auto-dialer.onrender.com/webhooks/plivo/browser-agent-session
+Answer Method: POST
+Hangup URL: https://truckx-auto-dialer.onrender.com/webhooks/plivo/status
+Hangup Method: POST
+```
+
+Then create a Plivo Endpoint, attach it to that application, and put the endpoint username/password in Render as `PLIVO_BROWSER_USERNAME` and `PLIVO_BROWSER_PASSWORD`. After Render redeploys, the agent clicks Start, allows microphone access, and TruckX begins dialing customers only after browser audio connects.
+
+The current browser mode is ready for one shared test endpoint. For multiple live agents, create one Plivo Endpoint per agent and store separate endpoint credentials per agent before running concurrent sessions.
 
 For separate agent logins, set `APP_USERS` instead of only one global login:
 
@@ -114,7 +142,7 @@ Open this page after deployment to compare logo directions:
 https://truckx-auto-dialer.onrender.com/logo-options.html
 ```
 
-The current default is **A. Connected Wordmark**.
+The current web default is **C**, with the extension using the compact **B** mark.
 
 Credential instructions are in [docs/GET_CREDENTIALS.md](docs/GET_CREDENTIALS.md).
 

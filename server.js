@@ -153,6 +153,15 @@ function setupStatus() {
           : 'Missing carrier credentials'
       },
       {
+        id: 'agent_connection',
+        label: 'Agent connection',
+        ok: config.agentConnectionMode !== 'browser' || Boolean(config.plivo.browserUsername && config.plivo.browserPassword),
+        value: config.agentConnectionMode,
+        message: config.agentConnectionMode === 'browser'
+          ? (config.plivo.browserUsername && config.plivo.browserPassword ? 'Browser softphone is configured' : 'Set PLIVO_BROWSER_USERNAME and PLIVO_BROWSER_PASSWORD')
+          : 'Agent phone call mode'
+      },
+      {
         id: 'hubspot',
         label: 'HubSpot',
         ok: config.leadSource !== 'hubspot' || Boolean(config.hubspot.privateAppToken),
@@ -211,6 +220,7 @@ function setupStatus() {
       plivoAnswer: `${publicUrl}/webhooks/plivo/answer`,
       plivoAgentAnswer: `${publicUrl}/webhooks/plivo/agent-answer`,
       plivoAgentSession: `${publicUrl}/webhooks/plivo/agent-session`,
+      plivoBrowserAgentSession: `${publicUrl}/webhooks/plivo/browser-agent-session`,
       plivoCustomerAnswer: `${publicUrl}/webhooks/plivo/customer-answer`,
       plivoStatus: `${publicUrl}/webhooks/plivo/status`,
       plivoMachine: `${publicUrl}/webhooks/plivo/machine`
@@ -322,6 +332,31 @@ function conferenceXml(conferenceName, attrs = {}) {
     `<Conference${attrText}>${escapeXml(conferenceName)}</Conference>`,
     '</Response>'
   ].join('');
+}
+
+function runningBrowserSessionForAgent(body = {}) {
+  const endpointUsername = String(body.From || body.CallerName || '').replace(/^sip:/, '').split('@')[0].trim().toLowerCase();
+  const data = getStore();
+  const agents = data.agents || [];
+  const matchedAgent = agents.find((agent) => {
+    const configured = String(agent.plivoEndpointUsername || agent.softphoneUsername || '').toLowerCase();
+    return configured && endpointUsername && configured === endpointUsername;
+  });
+
+  const ownerIds = matchedAgent
+    ? new Set([matchedAgent.ownerId].filter(Boolean))
+    : null;
+
+  const runningCampaign = (data.campaigns || []).find((campaign) => {
+    if (campaign.status !== 'running' || !campaign.currentSessionId) return false;
+    if (ownerIds && !ownerIds.has(campaign.ownerId)) return false;
+    const session = data.sessions.find((item) => item.id === campaign.currentSessionId);
+    return session && !session.agentConnectedAt;
+  });
+
+  if (!runningCampaign) return { campaign: null, session: null };
+  const session = data.sessions.find((item) => item.id === runningCampaign.currentSessionId);
+  return { campaign: runningCampaign, session };
 }
 
 function parseBody(request) {
@@ -568,6 +603,24 @@ async function handleApi(request, response, url) {
     return true;
   }
 
+  if (request.method === 'GET' && url.pathname === '/api/agent/softphone-config') {
+    if (!request.user?.agentId) {
+      sendJson(response, { error: 'Agent session required' }, 401);
+      return true;
+    }
+
+    sendJson(response, {
+      mode: config.agentConnectionMode,
+      enabled: config.voiceProvider === 'plivo'
+        && config.agentConnectionMode === 'browser'
+        && Boolean(config.plivo.browserUsername && config.plivo.browserPassword),
+      username: config.plivo.browserUsername,
+      password: config.plivo.browserPassword,
+      dialTarget: config.plivo.browserDialTarget
+    });
+    return true;
+  }
+
   if (request.method === 'GET' && url.pathname === '/api/dnc') {
     if (requireAdmin(request, response)) return true;
     const data = getStore();
@@ -798,6 +851,32 @@ async function handleWebhooks(request, response, url) {
     const session = await dialerEngine.markAgentSessionAnswered(campaignId, sessionId, body);
 
     sendXml(response, conferenceXml(session.conferenceName, {
+      startConferenceOnEnter: 'true',
+      endConferenceOnExit: 'true',
+      stayAlone: 'true',
+      maxMembers: '2',
+      enterSound: '',
+      exitSound: ''
+    }));
+    return true;
+  }
+
+  if (request.method === 'POST' && url.pathname === '/webhooks/plivo/browser-agent-session') {
+    const body = await parseBody(request);
+    const { campaign, session } = runningBrowserSessionForAgent(body);
+
+    if (!campaign || !session) {
+      sendXml(response, [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<Response>',
+        '<Hangup/>',
+        '</Response>'
+      ].join(''));
+      return true;
+    }
+
+    const updatedSession = await dialerEngine.markAgentSessionAnswered(campaign.id, session.id, body);
+    sendXml(response, conferenceXml(updatedSession.conferenceName, {
       startConferenceOnEnter: 'true',
       endConferenceOnExit: 'true',
       stayAlone: 'true',

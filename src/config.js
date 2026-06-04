@@ -73,6 +73,7 @@ export const config = {
   },
   leadSource: process.env.LEAD_SOURCE || 'mock',
   voiceProvider: process.env.VOICE_PROVIDER || 'mock',
+  agentConnectionMode: process.env.AGENT_CONNECTION_MODE || 'phone',
   callerIdNumber: callerIdNumbers[0] || '+15551234567',
   callerIdNumbers: callerIdNumbers.length ? callerIdNumbers : ['+15551234567'],
   defaultAgentPhone: process.env.DEFAULT_AGENT_PHONE || '+15557654321',
@@ -95,7 +96,10 @@ export const config = {
   },
   plivo: {
     authId: process.env.PLIVO_AUTH_ID || '',
-    authToken: process.env.PLIVO_AUTH_TOKEN || ''
+    authToken: process.env.PLIVO_AUTH_TOKEN || '',
+    browserUsername: process.env.PLIVO_BROWSER_USERNAME || '',
+    browserPassword: process.env.PLIVO_BROWSER_PASSWORD || '',
+    browserDialTarget: process.env.PLIVO_BROWSER_DIAL_TARGET || 'truckx-agent@phone.plivo.com'
   },
   compliance: {
     defaultCallWindowStart: process.env.DEFAULT_CALL_WINDOW_START || '09:00',

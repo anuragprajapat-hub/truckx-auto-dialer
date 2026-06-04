@@ -6,6 +6,11 @@ let authToken = '';
 let state = null;
 let snapshot = null;
 let selectedCampaignId = '';
+let softphoneClient = null;
+let softphoneLoggedIn = false;
+let softphoneCallActive = false;
+let softphoneLoginWaiter = null;
+let softphoneMode = 'phone';
 
 const elements = {
   setupView: document.querySelector('#setupView'),
@@ -169,6 +174,114 @@ function setNotice(message, type = 'info') {
   elements.notice.className = `notice ${type}`;
 }
 
+async function softphoneConfig() {
+  const config = await api('/api/agent/softphone-config');
+  softphoneMode = config.mode || 'phone';
+  return config;
+}
+
+function settleSoftphoneLogin(error) {
+  if (!softphoneLoginWaiter) return;
+  if (error) {
+    softphoneLoginWaiter.reject(error);
+  } else {
+    softphoneLoginWaiter.resolve();
+  }
+  softphoneLoginWaiter = null;
+}
+
+function initSoftphoneClient() {
+  if (softphoneClient) return softphoneClient;
+  if (!window.Plivo) {
+    throw new Error('Browser phone is still loading. Wait a few seconds and press Start again.');
+  }
+
+  const sdk = new window.Plivo({
+    debug: 'INFO',
+    permOnClick: true,
+    enableTracking: true,
+    closeProtection: true,
+    maxAverageBitrate: 48000
+  });
+
+  softphoneClient = sdk.client;
+  softphoneClient.setRingToneBack?.(false);
+  softphoneClient.setConnectTone?.(false);
+
+  softphoneClient.on('onLogin', () => {
+    softphoneLoggedIn = true;
+    settleSoftphoneLogin();
+  });
+  softphoneClient.on('onLoginFailed', () => {
+    softphoneLoggedIn = false;
+    settleSoftphoneLogin(new Error('Browser phone login failed. Check the Plivo browser endpoint credentials.'));
+  });
+  softphoneClient.on('onMediaPermission', (permission) => {
+    if (permission === false) setNotice('Microphone permission is required for browser dialing.', 'error');
+  });
+  softphoneClient.on('onCallConnected', () => {
+    softphoneCallActive = true;
+    setNotice('Browser audio connected. Stay on this page while TruckX dials customers.', 'success');
+    window.setTimeout(loadState, 800);
+  });
+  softphoneClient.on('onMediaConnected', () => {
+    softphoneCallActive = true;
+    setNotice('Browser audio connected. Stay on this page while TruckX dials customers.', 'success');
+    window.setTimeout(loadState, 800);
+  });
+  softphoneClient.on('onCallFailed', () => {
+    softphoneCallActive = false;
+    setNotice('Browser audio could not connect. Check microphone permission and Plivo endpoint setup.', 'error');
+  });
+  softphoneClient.on('onCallTerminated', () => {
+    softphoneCallActive = false;
+    setNotice('Browser audio disconnected.', 'error');
+    window.setTimeout(loadState, 800);
+  });
+
+  return softphoneClient;
+}
+
+async function loginSoftphone(config) {
+  const client = initSoftphoneClient();
+  if (softphoneLoggedIn || client.isLoggedIn) return;
+
+  await new Promise((resolve, reject) => {
+    softphoneLoginWaiter = { resolve, reject };
+    client.login(config.username, config.password);
+    window.setTimeout(() => {
+      settleSoftphoneLogin(new Error('Browser phone login timed out. Try again.'));
+    }, 20000);
+  });
+}
+
+async function connectBrowserSoftphone(campaign) {
+  const config = await softphoneConfig();
+  if (config.mode !== 'browser') return false;
+  if (!config.enabled) {
+    throw new Error('Browser softphone is not configured yet. Ask admin to add PLIVO_BROWSER_USERNAME and PLIVO_BROWSER_PASSWORD in Render.');
+  }
+
+  await loginSoftphone(config);
+  if (softphoneCallActive) return true;
+
+  setNotice('Connecting browser audio. Allow microphone access when Chrome asks.', 'success');
+  initSoftphoneClient().call(config.dialTarget, {
+    'X-PH-CampaignId': campaign.id,
+    'X-PH-SessionId': campaign.currentSessionId || ''
+  });
+  return true;
+}
+
+function disconnectBrowserSoftphone() {
+  try {
+    softphoneClient?.hangup?.();
+  } catch {
+    // Stop should continue even if the SDK already ended the call locally.
+  }
+  softphoneCallActive = false;
+}
+
 function statusPill(value, extraClass = '') {
   const clean = String(value || 'unknown');
   return `<span class="pill ${escapeHtml(clean)} ${extraClass}">${escapeHtml(clean.replaceAll('_', ' '))}</span>`;
@@ -265,14 +378,18 @@ function renderQueueHealth() {
   const agentLineConnected = campaign.status === 'running' && session?.agentConnectedAt;
   const actionClass = agentLineConnecting || agentLineConnected || summary.ready ? 'ready' : 'blocked';
   const actionTitle = agentLineConnecting
-    ? 'Calling agent line'
+    ? (softphoneMode === 'browser' ? 'Connecting browser audio' : 'Calling agent line')
     : agentLineConnected
-      ? 'Agent line connected'
+      ? (softphoneMode === 'browser' ? 'Browser audio connected' : 'Agent line connected')
       : summary.ready ? 'Queue ready' : 'Queue blocked';
   const actionText = agentLineConnecting
-    ? 'Pick up your phone. Customer dialing starts after you are connected.'
+    ? (softphoneMode === 'browser'
+        ? 'Keep this tab open and allow microphone access. Customer dialing starts after audio connects.'
+        : 'Pick up your phone. Customer dialing starts after you are connected.')
     : agentLineConnected
-      ? 'Stay on this call. TruckX will dial customers and connect answered calls here.'
+      ? (softphoneMode === 'browser'
+          ? 'Stay on this tab. TruckX will dial customers and connect answered calls here.'
+          : 'Stay on this call. TruckX will dial customers and connect answered calls here.')
       : nextQueueAction(summary);
 
   elements.queueHealth.hidden = false;
@@ -456,12 +573,20 @@ elements.campaignSelect.addEventListener('change', async () => {
 elements.startButton.addEventListener('click', async () => {
   const campaign = selectedCampaign();
   if (!campaign) return;
+  let startedCampaign = null;
   try {
-    await api(`/api/campaigns/${campaign.id}/start`, { method: 'POST' });
-    setNotice('Dialer started.', 'success');
+    startedCampaign = await api(`/api/campaigns/${campaign.id}/start`, { method: 'POST' });
+    const browserConnecting = await connectBrowserSoftphone(startedCampaign);
+    if (!browserConnecting) {
+      setNotice('Dialer started.', 'success');
+    }
     await loadState();
   } catch (error) {
+    if (startedCampaign?.id) {
+      await api(`/api/campaigns/${startedCampaign.id}/stop`, { method: 'POST' }).catch(() => {});
+    }
     setNotice(error.message, 'error');
+    await loadState().catch(() => {});
   }
 });
 
@@ -470,6 +595,7 @@ elements.stopButton.addEventListener('click', async () => {
   if (!campaign) return;
   try {
     await api(`/api/campaigns/${campaign.id}/stop`, { method: 'POST' });
+    disconnectBrowserSoftphone();
     setNotice('Dialer stopped.', 'success');
     await loadState();
   } catch (error) {

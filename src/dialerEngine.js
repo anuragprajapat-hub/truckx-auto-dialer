@@ -66,6 +66,10 @@ export class DialerEngine {
     return typeof this.voiceProvider.createAgentSession === 'function';
   }
 
+  usesBrowserAgentSession() {
+    return this.voiceProvider.name === 'plivo' && config.agentConnectionMode === 'browser';
+  }
+
   async startCampaign(campaignId) {
     const campaign = setCampaignStatus(campaignId, 'running');
     await this.tick();
@@ -254,6 +258,16 @@ export class DialerEngine {
 
     if (session.agentConnectedAt) {
       return true;
+    }
+
+    if (this.usesBrowserAgentSession()) {
+      if (!session.conferenceName) {
+        updateSession(session.id, {
+          agentCallStatus: 'waiting_for_browser',
+          conferenceName: conferenceNameFor(latestCampaign.id, session.id)
+        });
+      }
+      return false;
     }
 
     if (session.agentCallId && SESSION_ACTIVE_STATUSES.has(session.agentCallStatus || 'queued')) {
@@ -458,6 +472,7 @@ export class DialerEngine {
 
     const conferenceName = session.conferenceName || conferenceNameFor(campaign.id, session.id);
     const updatedSession = updateSession(session.id, {
+      agentCallId: raw.RequestUUID || session.agentCallId || '',
       agentCallStatus: 'in_progress',
       agentConnectedAt: session.agentConnectedAt || new Date().toISOString(),
       agentLiveCallId: raw.CallUUID || session.agentLiveCallId || '',
