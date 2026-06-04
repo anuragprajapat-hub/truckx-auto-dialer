@@ -866,6 +866,12 @@ async function handleWebhooks(request, response, url) {
     const { campaign, session } = runningBrowserSessionForAgent(body);
 
     if (!campaign || !session) {
+      addEvent('browser_agent_session_unmatched', 'Browser agent session could not match a running PowerList', {
+        from: body.From || body.CallerName || '',
+        to: body.To || '',
+        callUuid: body.CallUUID || '',
+        requestUuid: body.RequestUUID || ''
+      });
       sendXml(response, [
         '<?xml version="1.0" encoding="UTF-8"?>',
         '<Response>',

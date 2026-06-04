@@ -11,6 +11,7 @@ let softphoneLoggedIn = false;
 let softphoneCallActive = false;
 let softphoneLoginWaiter = null;
 let softphoneMode = 'phone';
+let softphoneConfigCache = null;
 
 const elements = {
   setupView: document.querySelector('#setupView'),
@@ -157,6 +158,8 @@ function logout(message = 'Logged out. Paste a setup token to connect again.') {
   state = null;
   snapshot = null;
   selectedCampaignId = '';
+  softphoneConfigCache = null;
+  softphoneMode = 'phone';
   localStorage.removeItem(TOKEN_KEY);
   elements.manualToken.value = '';
   showSetup(message);
@@ -174,8 +177,10 @@ function setNotice(message, type = 'info') {
   elements.notice.className = `notice ${type}`;
 }
 
-async function softphoneConfig() {
+async function softphoneConfig(options = {}) {
+  if (softphoneConfigCache && !options.refresh) return softphoneConfigCache;
   const config = await api('/api/agent/softphone-config');
+  softphoneConfigCache = config;
   softphoneMode = config.mode || 'phone';
   return config;
 }
@@ -308,6 +313,14 @@ function campaignTarget(campaign) {
 function currentSession(campaign) {
   if (!campaign?.currentSessionId) return null;
   return (state.sessions || []).find((session) => session.id === campaign.currentSessionId) || null;
+}
+
+function needsBrowserAudio(campaign) {
+  const session = currentSession(campaign);
+  return softphoneMode === 'browser'
+    && campaign?.status === 'running'
+    && Boolean(campaign.currentSessionId)
+    && (!session || !session.agentConnectedAt);
 }
 
 function pendingDispositionCall() {
@@ -453,7 +466,9 @@ function renderCampaigns() {
   elements.campaignMeta.textContent = `${campaignTarget(current)} | ${current.maxParallelCalls} lines`;
   elements.campaignStatus.outerHTML = statusPill(current.status || 'draft');
   elements.campaignStatus = document.querySelector('.panel-heading .pill');
-  elements.startButton.disabled = ['running', 'connected'].includes(current.status);
+  const connectAudio = needsBrowserAudio(current);
+  elements.startButton.textContent = connectAudio ? 'Connect Audio' : 'Start';
+  elements.startButton.disabled = connectAudio ? false : ['running', 'connected'].includes(current.status);
   elements.stopButton.disabled = !['running', 'connected', 'paused'].includes(current.status);
 }
 
@@ -542,6 +557,7 @@ function render() {
 
 async function loadState() {
   state = await api('/api/state');
+  await softphoneConfig().catch(() => {});
   const campaign = selectedCampaign();
   snapshot = campaign ? await api(`/api/campaigns/${campaign.id}`) : null;
   render();
@@ -575,8 +591,12 @@ elements.startButton.addEventListener('click', async () => {
   if (!campaign) return;
   let startedCampaign = null;
   try {
-    startedCampaign = await api(`/api/campaigns/${campaign.id}/start`, { method: 'POST' });
-    const browserConnecting = await connectBrowserSoftphone(startedCampaign);
+    const wasWaitingForBrowserAudio = needsBrowserAudio(campaign);
+    const campaignToConnect = wasWaitingForBrowserAudio
+      ? campaign
+      : await api(`/api/campaigns/${campaign.id}/start`, { method: 'POST' });
+    startedCampaign = wasWaitingForBrowserAudio ? null : campaignToConnect;
+    const browserConnecting = await connectBrowserSoftphone(campaignToConnect);
     if (!browserConnecting) {
       setNotice('Dialer started.', 'success');
     }
