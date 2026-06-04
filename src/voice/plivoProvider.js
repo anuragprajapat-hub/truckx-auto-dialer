@@ -18,13 +18,48 @@ function plivoNumber(phone) {
 export function createPlivoProvider() {
   return {
     name: 'plivo',
-    async createOutboundCall({ lead, campaign, callerIdNumber }) {
+    async createAgentSession({ campaign, session, callerIdNumber, conferenceName }) {
       assertPlivoConfig();
 
       const body = {
         from: plivoNumber(callerIdNumber || config.callerIdNumber),
         to: plivoNumber(campaign.agentPhone),
-        answer_url: `${config.publicBaseUrl}/webhooks/plivo/agent-answer?campaignId=${encodeURIComponent(campaign.id)}&leadId=${encodeURIComponent(lead.id)}`,
+        answer_url: `${config.publicBaseUrl}/webhooks/plivo/agent-session?campaignId=${encodeURIComponent(campaign.id)}&sessionId=${encodeURIComponent(session.id)}`,
+        answer_method: 'POST',
+        hangup_url: `${config.publicBaseUrl}/webhooks/plivo/status`,
+        hangup_method: 'POST'
+      };
+
+      const response = await fetch(`https://api.plivo.com/v1/Account/${config.plivo.authId}/Call/`, {
+        method: 'POST',
+        headers: {
+          Authorization: authHeader(),
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(body)
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || result.message || `Plivo agent call failed with ${response.status}`);
+      }
+
+      return {
+        providerCallId: result.request_uuid || result.message_uuid?.[0] || '',
+        provider: 'plivo',
+        status: 'queued',
+        agentPhone: campaign.agentPhone,
+        callerIdNumber: callerIdNumber || config.callerIdNumber,
+        conferenceName
+      };
+    },
+    async createOutboundCall({ lead, campaign, callerIdNumber }) {
+      assertPlivoConfig();
+
+      const body = {
+        from: plivoNumber(callerIdNumber || config.callerIdNumber),
+        to: plivoNumber(lead.phone),
+        answer_url: `${config.publicBaseUrl}/webhooks/plivo/customer-answer?campaignId=${encodeURIComponent(campaign.id)}&leadId=${encodeURIComponent(lead.id)}&sessionId=${encodeURIComponent(campaign.currentSessionId || '')}`,
         answer_method: 'POST',
         hangup_url: `${config.publicBaseUrl}/webhooks/plivo/status`,
         hangup_method: 'POST'
@@ -55,9 +90,10 @@ export function createPlivoProvider() {
     },
     async cancelOutboundCall(call) {
       assertPlivoConfig();
-      if (!call.providerCallId) return { skipped: true };
+      const callId = call.providerLiveCallId || call.providerCallId;
+      if (!callId) return { skipped: true };
 
-      const response = await fetch(`https://api.plivo.com/v1/Account/${config.plivo.authId}/Call/${encodeURIComponent(call.providerCallId)}/`, {
+      const response = await fetch(`https://api.plivo.com/v1/Account/${config.plivo.authId}/Call/${encodeURIComponent(callId)}/`, {
         method: 'DELETE',
         headers: {
           Authorization: authHeader()

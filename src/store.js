@@ -553,7 +553,12 @@ export function setCampaignStatus(campaignId, status) {
         ownerId: campaign.ownerId,
         startedAt: now,
         endedAt: '',
-        endedReason: ''
+        endedReason: '',
+        agentCallId: '',
+        agentCallStatus: '',
+        agentLiveCallId: '',
+        agentConnectedAt: '',
+        conferenceName: ''
       };
       data.sessions.unshift(session);
       campaign.currentSessionId = session.id;
@@ -569,6 +574,17 @@ export function setCampaignStatus(campaignId, status) {
       campaign.currentSessionId = '';
     }
     return campaign;
+  });
+}
+
+export function updateSession(sessionId, patch) {
+  return updateStore((data) => {
+    const session = data.sessions.find((item) => item.id === sessionId);
+    if (!session) {
+      throw new Error('Session not found');
+    }
+    Object.assign(session, patch);
+    return session;
   });
 }
 

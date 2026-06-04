@@ -85,6 +85,11 @@ function campaignTarget(campaign) {
   return ['EST', 'CST', 'MST', 'PST'].includes(target) ? target : 'ALL';
 }
 
+function currentSession(campaign) {
+  if (!campaign?.currentSessionId) return null;
+  return (state.sessions || []).find((session) => session.id === campaign.currentSessionId) || null;
+}
+
 function leadZone(lead) {
   const value = String(lead.timeZoneLabel || lead.timeZone || '').trim();
   const ianaMap = {
@@ -161,6 +166,20 @@ function renderQueueHealth(leads, campaign) {
   const topReason = summary.topReason
     ? `${summary.topReasonCount} blocked: ${summary.topReason}`
     : 'No blockers';
+  const session = currentSession(campaign);
+  const agentLineConnecting = campaign.status === 'running' && session && !session.agentConnectedAt;
+  const agentLineConnected = campaign.status === 'running' && session?.agentConnectedAt;
+  const actionClass = agentLineConnecting || agentLineConnected || summary.ready ? 'ready' : 'blocked';
+  const actionTitle = agentLineConnecting
+    ? 'Calling agent line'
+    : agentLineConnected
+      ? 'Agent line connected'
+      : summary.ready ? 'Ready to start' : 'Needs attention';
+  const actionText = agentLineConnecting
+    ? 'Agent must pick up before customer dialing begins.'
+    : agentLineConnected
+      ? 'Agent remains connected while TruckX dials customers one by one.'
+      : nextQueueAction(summary);
 
   elements.queueHealth.hidden = false;
   elements.queueHealth.innerHTML = `
@@ -178,10 +197,10 @@ function renderQueueHealth(leads, campaign) {
         <span>Blocked</span>
       </div>
     </div>
-    <div class="queue-action ${readyClass}">
-      <strong>${summary.ready ? 'Ready to start' : 'Needs attention'}</strong>
+    <div class="queue-action ${actionClass}">
+      <strong>${escapeHtml(actionTitle)}</strong>
       <span>${escapeHtml(topReason)}</span>
-      <span>${escapeHtml(nextQueueAction(summary))}</span>
+      <span>${escapeHtml(actionText)}</span>
     </div>
   `;
 }

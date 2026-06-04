@@ -192,6 +192,11 @@ function campaignTarget(campaign) {
   return ['EST', 'CST', 'MST', 'PST'].includes(target) ? target : 'ALL';
 }
 
+function currentSession(campaign) {
+  if (!campaign?.currentSessionId) return null;
+  return (state.sessions || []).find((session) => session.id === campaign.currentSessionId) || null;
+}
+
 function pendingDispositionCall() {
   const campaign = selectedCampaign();
   if (!campaign) return null;
@@ -255,6 +260,20 @@ function renderQueueHealth() {
   const topReason = summary.topReason
     ? `${summary.topReasonCount} blocked: ${summary.topReason}`
     : 'No blockers';
+  const session = currentSession(campaign);
+  const agentLineConnecting = campaign.status === 'running' && session && !session.agentConnectedAt;
+  const agentLineConnected = campaign.status === 'running' && session?.agentConnectedAt;
+  const actionClass = agentLineConnecting || agentLineConnected || summary.ready ? 'ready' : 'blocked';
+  const actionTitle = agentLineConnecting
+    ? 'Calling agent line'
+    : agentLineConnected
+      ? 'Agent line connected'
+      : summary.ready ? 'Queue ready' : 'Queue blocked';
+  const actionText = agentLineConnecting
+    ? 'Pick up your phone. Customer dialing starts after you are connected.'
+    : agentLineConnected
+      ? 'Stay on this call. TruckX will dial customers and connect answered calls here.'
+      : nextQueueAction(summary);
 
   elements.queueHealth.hidden = false;
   elements.queueHealth.innerHTML = `
@@ -268,10 +287,10 @@ function renderQueueHealth() {
         <span>Blocked</span>
       </div>
     </div>
-    <div class="queue-action ${summary.ready ? 'ready' : 'blocked'}">
-      <strong>${summary.ready ? 'Queue ready' : 'Queue blocked'}</strong>
+    <div class="queue-action ${actionClass}">
+      <strong>${escapeHtml(actionTitle)}</strong>
       <span>${escapeHtml(topReason)}</span>
-      <span>${escapeHtml(nextQueueAction(summary))}</span>
+      <span>${escapeHtml(actionText)}</span>
     </div>
   `;
 

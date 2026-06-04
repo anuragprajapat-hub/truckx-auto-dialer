@@ -22,7 +22,6 @@ import {
   initStore,
   removeDncNumber,
   resetProviderErrorsForCampaign,
-  setCampaignStatus,
   storeBackend,
   touchAgent,
   updateAgentInviteEmailStatus,
@@ -35,7 +34,8 @@ const mimeTypes = {
   '.css': 'text/css; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
-  '.svg': 'image/svg+xml'
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png'
 };
 
 function send(response, statusCode, body, headers = {}) {
@@ -210,6 +210,8 @@ function setupStatus() {
       twilioStatus: `${publicUrl}/webhooks/twilio/status`,
       plivoAnswer: `${publicUrl}/webhooks/plivo/answer`,
       plivoAgentAnswer: `${publicUrl}/webhooks/plivo/agent-answer`,
+      plivoAgentSession: `${publicUrl}/webhooks/plivo/agent-session`,
+      plivoCustomerAnswer: `${publicUrl}/webhooks/plivo/customer-answer`,
       plivoStatus: `${publicUrl}/webhooks/plivo/status`,
       plivoMachine: `${publicUrl}/webhooks/plivo/machine`
     }
@@ -291,19 +293,35 @@ function maskedValue(value) {
 function bridgeDetails(url) {
   const campaignId = url.searchParams.get('campaignId') || '';
   const leadId = url.searchParams.get('leadId') || '';
+  const sessionId = url.searchParams.get('sessionId') || '';
   const data = getStore();
   const campaign = data.campaigns.find((item) => item.id === campaignId);
   const lead = data.leads.find((item) => item.id === leadId);
   const call = data.calls.find((item) => item.campaignId === campaignId && item.leadId === leadId && !item.completedAt);
+  const session = data.sessions.find((item) => item.id === sessionId || item.id === campaign?.currentSessionId);
 
   return {
     campaign,
+    session,
+    conferenceName: session?.conferenceName || '',
     agentPhone: campaign?.agentPhone || call?.agentPhone || config.defaultAgentPhone,
     leadPhone: call?.leadPhone || normalizeUsPhone(lead?.phone) || lead?.phone || '',
     callerIdNumber: call?.callerIdNumber || config.callerIdNumber,
     voicemailDrop: Boolean(campaign?.voicemailDrop),
     voicemailAudioUrl: config.voicemailAudioUrl
   };
+}
+
+function conferenceXml(conferenceName, attrs = {}) {
+  const attrText = Object.entries(attrs)
+    .map(([key, value]) => ` ${key}="${escapeXml(value)}"`)
+    .join('');
+  return [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<Response>',
+    `<Conference${attrText}>${escapeXml(conferenceName)}</Conference>`,
+    '</Response>'
+  ].join('');
 }
 
 function parseBody(request) {
@@ -605,11 +623,12 @@ async function handleApi(request, response, url) {
   const startCampaignId = campaignIdFromPath(url.pathname, 'start');
   if (request.method === 'POST' && startCampaignId) {
     assertCampaignAccess(startCampaignId, request.user);
-    const campaign = setCampaignStatus(startCampaignId, 'running');
+    let campaign = null;
     try {
-      await dialerEngine.tick();
+      campaign = await dialerEngine.startCampaign(startCampaignId);
     } catch (error) {
       addEvent('engine_error', error.message, { campaignId: startCampaignId, source: 'manual_start' });
+      throw error;
     }
     sendJson(response, campaign);
     return true;
@@ -618,7 +637,7 @@ async function handleApi(request, response, url) {
   const stopCampaignId = campaignIdFromPath(url.pathname, 'stop');
   if (request.method === 'POST' && stopCampaignId) {
     assertCampaignAccess(stopCampaignId, request.user);
-    const campaign = setCampaignStatus(stopCampaignId, 'stopped');
+    const campaign = await dialerEngine.stopCampaign(stopCampaignId, 'stopped');
     sendJson(response, campaign);
     return true;
   }
@@ -704,14 +723,14 @@ async function handleWebhooks(request, response, url) {
 
   if (request.method === 'POST' && url.pathname === '/webhooks/plivo/status') {
     const body = await parseBody(request);
-    const call = await dialerEngine.completeProviderCall(body.CallUUID || body.RequestUUID, body.CallStatus || body.HangupCause, body.AnsweredBy, body);
+    const call = await dialerEngine.completeProviderCall(body.RequestUUID || body.CallUUID, body.CallStatus || body.HangupCause, body.AnsweredBy || body.Machine, body);
     sendJson(response, { ok: true, call });
     return true;
   }
 
   if (request.method === 'POST' && url.pathname === '/webhooks/plivo/machine') {
     const body = await parseBody(request);
-    const call = await dialerEngine.completeProviderCall(body.CallUUID || body.RequestUUID, body.CallStatus, body.Machine, body);
+    const call = await dialerEngine.completeProviderCall(body.RequestUUID || body.CallUUID, body.CallStatus, body.Machine, body);
     sendJson(response, { ok: true, call });
     return true;
   }
@@ -769,6 +788,51 @@ async function handleWebhooks(request, response, url) {
       `<Dial callerId="${escapeXml(plivoNumber(details.callerIdNumber))}" dialMusic="real"><Number>${escapeXml(plivoNumber(details.leadPhone))}</Number></Dial>`,
       '</Response>'
     ].join(''));
+    return true;
+  }
+
+  if (request.method === 'POST' && url.pathname === '/webhooks/plivo/agent-session') {
+    const body = await parseBody(request);
+    const campaignId = url.searchParams.get('campaignId') || '';
+    const sessionId = url.searchParams.get('sessionId') || '';
+    const session = await dialerEngine.markAgentSessionAnswered(campaignId, sessionId, body);
+
+    sendXml(response, conferenceXml(session.conferenceName, {
+      startConferenceOnEnter: 'true',
+      endConferenceOnExit: 'true',
+      stayAlone: 'true',
+      maxMembers: '2',
+      enterSound: '',
+      exitSound: ''
+    }));
+    return true;
+  }
+
+  if (request.method === 'POST' && url.pathname === '/webhooks/plivo/customer-answer') {
+    const body = await parseBody(request);
+    const campaignId = url.searchParams.get('campaignId') || '';
+    const leadId = url.searchParams.get('leadId') || '';
+    const details = bridgeDetails(url);
+
+    if (!details.session?.agentConnectedAt || !details.conferenceName) {
+      sendXml(response, [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<Response>',
+        '<Hangup/>',
+        '</Response>'
+      ].join(''));
+      return true;
+    }
+
+    await dialerEngine.markCustomerAnswered(campaignId, leadId, body);
+    sendXml(response, conferenceXml(details.conferenceName, {
+      startConferenceOnEnter: 'true',
+      endConferenceOnExit: 'false',
+      stayAlone: 'false',
+      maxMembers: '2',
+      enterSound: '',
+      exitSound: ''
+    }));
     return true;
   }
 

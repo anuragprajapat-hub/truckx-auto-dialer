@@ -6,6 +6,7 @@ import {
   getStore,
   resetProviderErrorsForCampaign,
   setCampaignStatus,
+  updateSession,
   updateCall,
   updateLead,
   upsertLeads,
@@ -18,6 +19,12 @@ import { selectCallerIdNumber } from './voice/callerId.js';
 
 const ACTIVE_STATUSES = new Set(['dialing', 'queued', 'ringing', 'in_progress']);
 const CANCELABLE_STATUSES = new Set(['dialing', 'queued', 'ringing', 'in_progress']);
+const SESSION_ACTIVE_STATUSES = new Set(['dialing', 'queued', 'ringing', 'in_progress']);
+
+function conferenceNameFor(campaignId, sessionId) {
+  return `truckx-${String(campaignId || '').slice(0, 8)}-${String(sessionId || '').slice(0, 8)}`;
+}
+
 function outcomeToLeadStatus(outcome, attempts = 0) {
   if (outcome === 'live_answer') return 'connected';
   if (outcome === 'voicemail') return 'voicemail';
@@ -34,8 +41,8 @@ function providerStatusToOutcome(status, answeredBy) {
   if (normalizedAnsweredBy.includes('machine')) return 'voicemail';
   if (normalizedAnsweredBy.includes('human')) return 'live_answer';
   if (normalizedStatus === 'busy') return 'busy';
-  if (normalizedStatus === 'no-answer' || normalizedStatus === 'no_answer') return 'no_answer';
-  if (normalizedStatus === 'failed' || normalizedStatus === 'canceled') return 'failed';
+  if (normalizedStatus === 'no-answer' || normalizedStatus === 'no_answer' || normalizedStatus === 'timeout') return 'no_answer';
+  if (normalizedStatus === 'failed' || normalizedStatus === 'canceled' || normalizedStatus === 'cancel') return 'failed';
   if (normalizedStatus === 'completed') return 'live_answer';
   return '';
 }
@@ -53,6 +60,74 @@ export class DialerEngine {
     this.voiceProvider = createVoiceProvider();
     this.timer = null;
     this.isTicking = false;
+  }
+
+  usesPersistentAgentSession() {
+    return typeof this.voiceProvider.createAgentSession === 'function';
+  }
+
+  async startCampaign(campaignId) {
+    const campaign = setCampaignStatus(campaignId, 'running');
+    await this.tick();
+    return getStore().campaigns.find((item) => item.id === campaign.id) || campaign;
+  }
+
+  async stopCampaign(campaignId, status = 'stopped', options = {}) {
+    const data = getStore();
+    const campaign = data.campaigns.find((item) => item.id === campaignId);
+    if (!campaign) throw new Error('Campaign not found');
+
+    const activeCalls = data.calls.filter((call) => (
+      call.campaignId === campaign.id && CANCELABLE_STATUSES.has(call.status)
+    ));
+
+    for (const call of activeCalls) {
+      try {
+        if (call.providerCallId !== options.skipProviderCallId && typeof this.voiceProvider.cancelOutboundCall === 'function') {
+          await this.voiceProvider.cancelOutboundCall(call);
+        }
+      } catch (error) {
+        addEvent('call_cancel_failed', error.message, {
+          campaignId: call.campaignId,
+          callId: call.id
+        });
+      }
+
+      updateCall(call.id, {
+        status: 'canceled',
+        completedAt: new Date().toISOString(),
+        outcome: status === 'complete' ? 'campaign_complete' : 'campaign_stopped'
+      });
+      updateLead(call.leadId, {
+        status: 'retry',
+        lastOutcome: status === 'complete' ? 'campaign_complete' : 'campaign_stopped'
+      });
+    }
+
+    const session = data.sessions.find((item) => item.id === campaign.currentSessionId);
+    if (session?.agentCallId && session.agentCallId !== options.skipProviderCallId) {
+      try {
+        if (typeof this.voiceProvider.cancelOutboundCall === 'function') {
+          await this.voiceProvider.cancelOutboundCall({
+            providerCallId: session.agentCallId,
+            providerLiveCallId: session.agentLiveCallId,
+            status: session.agentCallStatus
+          });
+        }
+      } catch (error) {
+        addEvent('agent_session_cancel_failed', error.message, {
+          campaignId: campaign.id,
+          sessionId: session.id
+        });
+      }
+    }
+
+    const ended = setCampaignStatus(campaign.id, status);
+    addEvent('campaign_session_ended', `Campaign ${campaign.name} ${status}`, {
+      campaignId: campaign.id,
+      status
+    });
+    return ended;
   }
 
   start() {
@@ -122,25 +197,42 @@ export class DialerEngine {
     const data = getStore();
     const runningCampaigns = data.campaigns.filter((campaign) => campaign.status === 'running');
 
-    for (const campaign of runningCampaigns) {
+    for (const runningCampaign of runningCampaigns) {
       const fresh = getStore();
+      const campaign = fresh.campaigns.find((item) => item.id === runningCampaign.id);
+      if (!campaign) continue;
+
+      if (this.usesPersistentAgentSession()) {
+        const agentReady = await this.ensureAgentSession(campaign);
+        if (!agentReady) continue;
+      }
+
       const activeCalls = fresh.calls.filter((call) => call.campaignId === campaign.id && ACTIVE_STATUSES.has(call.status));
-      const openSlots = Math.max(0, Number(campaign.maxParallelCalls || 1) - activeCalls.length);
+      const maxParallelCalls = this.usesPersistentAgentSession() ? 1 : Number(campaign.maxParallelCalls || 1);
+      const openSlots = Math.max(0, maxParallelCalls - activeCalls.length);
       if (!openSlots) continue;
 
       const dncNumbers = new Set((fresh.dncNumbers || []).map((item) => item.phone));
       const activeLeadIds = new Set(activeCalls.map((call) => call.leadId));
+      const sessionLeadIds = new Set(fresh.calls
+        .filter((call) => call.campaignId === campaign.id && call.sessionId === campaign.currentSessionId)
+        .map((call) => call.leadId));
       const leads = fresh.leads
         .filter((lead) => lead.ownerId === campaign.ownerId)
         .filter((lead) => matchesCampaignTimeZone(lead, campaign))
         .filter((lead) => !activeLeadIds.has(lead.id))
+        .filter((lead) => !sessionLeadIds.has(lead.id))
         .filter((lead) => evaluateLeadForDial(lead, campaign, { dncNumbers }).allowed)
         .slice(0, openSlots);
 
       if (!leads.length && activeCalls.length === 0) {
-        const anyCandidate = fresh.leads.some((lead) => lead.ownerId === campaign.ownerId && matchesCampaignTimeZone(lead, campaign));
+        const anyCandidate = fresh.leads.some((lead) => (
+          lead.ownerId === campaign.ownerId
+          && matchesCampaignTimeZone(lead, campaign)
+          && !sessionLeadIds.has(lead.id)
+        ));
         if (!anyCandidate) {
-          setCampaignStatus(campaign.id, 'complete');
+          await this.stopCampaign(campaign.id, 'complete');
           addEvent('campaign_complete', `Campaign ${campaign.name} completed`, { campaignId: campaign.id });
         }
         continue;
@@ -150,6 +242,59 @@ export class DialerEngine {
         await this.startCall(campaign, lead);
       }
     }
+  }
+
+  async ensureAgentSession(campaign) {
+    const data = getStore();
+    const latestCampaign = data.campaigns.find((item) => item.id === campaign.id);
+    const session = data.sessions.find((item) => item.id === latestCampaign?.currentSessionId);
+    if (!latestCampaign?.currentSessionId || !session) {
+      return false;
+    }
+
+    if (session.agentConnectedAt) {
+      return true;
+    }
+
+    if (session.agentCallId && SESSION_ACTIVE_STATUSES.has(session.agentCallStatus || 'queued')) {
+      return false;
+    }
+
+    const conferenceName = session.conferenceName || conferenceNameFor(latestCampaign.id, session.id);
+    const callerIdNumber = selectCallerIdNumber({ phone: latestCampaign.agentPhone }, latestCampaign, 1);
+    try {
+      const providerSession = await this.voiceProvider.createAgentSession({
+        campaign: latestCampaign,
+        session,
+        callerIdNumber,
+        conferenceName
+      });
+
+      updateSession(session.id, {
+        agentCallId: providerSession.providerCallId,
+        agentCallStatus: providerSession.status || 'queued',
+        conferenceName
+      });
+
+      addEvent('agent_session_started', `Calling agent for ${latestCampaign.name}`, {
+        campaignId: latestCampaign.id,
+        sessionId: session.id,
+        providerCallId: providerSession.providerCallId,
+        conferenceName
+      });
+    } catch (error) {
+      updateSession(session.id, {
+        agentCallStatus: 'failed',
+        agentError: error.message
+      });
+      addEvent('agent_session_failed', error.message, {
+        campaignId: latestCampaign.id,
+        sessionId: session.id
+      });
+      await this.stopCampaign(latestCampaign.id, 'stopped');
+    }
+
+    return false;
   }
 
   async startCall(campaign, lead) {
@@ -195,6 +340,7 @@ export class DialerEngine {
 
       const call = addCall({
         campaignId: campaign.id,
+        sessionId: campaign.currentSessionId || '',
         leadId: lead.id,
         leadName: lead.name,
         leadPhone: allowed.phone,
@@ -271,11 +417,87 @@ export class DialerEngine {
       outcome
     });
 
-    if (outcome === 'live_answer') {
+    const campaign = getStore().campaigns.find((item) => item.id === updatedCall.campaignId);
+    if (outcome === 'live_answer' && this.usesPersistentAgentSession(campaign)) {
+      await this.cancelCompetingCalls(updatedCall);
+    } else if (outcome === 'live_answer') {
       await this.pauseCampaignForLiveAnswer(updatedCall);
     }
 
     return updatedCall;
+  }
+
+  async markCustomerAnswered(campaignId, leadId, raw = {}) {
+    const data = getStore();
+    const call = data.calls.find((item) => item.campaignId === campaignId && item.leadId === leadId && !item.completedAt);
+    if (!call) return null;
+
+    const updatedCall = updateCall(call.id, {
+      status: 'in_progress',
+      answeredAt: new Date().toISOString(),
+      providerLiveCallId: raw.CallUUID || call.providerLiveCallId || '',
+      raw
+    });
+
+    addEvent('customer_joined_agent_session', `${call.leadName} answered and joined the agent session`, {
+      campaignId,
+      callId: call.id,
+      leadId
+    });
+
+    return updatedCall;
+  }
+
+  async markAgentSessionAnswered(campaignId, sessionId, raw = {}) {
+    const data = getStore();
+    const campaign = data.campaigns.find((item) => item.id === campaignId);
+    if (!campaign) throw new Error('Campaign not found');
+
+    const session = data.sessions.find((item) => item.id === sessionId || item.id === campaign.currentSessionId);
+    if (!session) throw new Error('Session not found');
+
+    const conferenceName = session.conferenceName || conferenceNameFor(campaign.id, session.id);
+    const updatedSession = updateSession(session.id, {
+      agentCallStatus: 'in_progress',
+      agentConnectedAt: session.agentConnectedAt || new Date().toISOString(),
+      agentLiveCallId: raw.CallUUID || session.agentLiveCallId || '',
+      conferenceName,
+      rawAgentAnswer: raw
+    });
+
+    addEvent('agent_session_connected', `Agent connected for ${campaign.name}`, {
+      campaignId: campaign.id,
+      sessionId: session.id,
+      conferenceName
+    });
+
+    return updatedSession;
+  }
+
+  async completeAgentSession(providerCallId, providerStatus, raw = {}) {
+    const data = getStore();
+    const session = data.sessions.find((item) => item.agentCallId === providerCallId || item.agentLiveCallId === providerCallId);
+    if (!session) return null;
+
+    updateSession(session.id, {
+      agentCallStatus: providerStatus || 'completed',
+      agentEndedAt: new Date().toISOString(),
+      rawAgentHangup: raw
+    });
+
+    const campaign = getStore().campaigns.find((item) => item.id === session.campaignId);
+    if (campaign && ['running', 'connected'].includes(campaign.status)) {
+      await this.stopCampaign(campaign.id, 'stopped', { skipProviderCallId: providerCallId });
+    }
+
+    addEvent('agent_session_ended', `Agent session ended for ${campaign?.name || session.campaignId}`, {
+      campaignId: session.campaignId,
+      sessionId: session.id,
+      providerCallId,
+      providerStatus
+    });
+
+    return session;
   }
 
   async pauseCampaignForLiveAnswer(answeredCall) {
@@ -380,8 +602,11 @@ export class DialerEngine {
 
   async completeProviderCall(providerCallId, providerStatus, answeredBy, raw = {}) {
     const data = getStore();
-    const call = data.calls.find((item) => item.providerCallId === providerCallId);
+    const call = data.calls.find((item) => item.providerCallId === providerCallId || item.providerLiveCallId === providerCallId);
     if (!call) {
+      const session = await this.completeAgentSession(providerCallId, providerStatus, raw);
+      if (session) return session;
+
       addEvent('unknown_provider_call', `No local call matched provider id ${providerCallId}`, raw);
       return null;
     }
@@ -396,7 +621,7 @@ export class DialerEngine {
         const latestCall = getStore().calls.find((item) => item.id === call.id);
         await this.cancelCompetingCalls(latestCall);
         const latestCampaign = getStore().campaigns.find((item) => item.id === call.campaignId);
-        if (latestCampaign?.status === 'running') {
+        if (latestCampaign?.status === 'running' && !this.usesPersistentAgentSession(latestCampaign)) {
           setCampaignStatus(latestCampaign.id, 'connected');
         }
       }
