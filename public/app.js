@@ -20,6 +20,7 @@ const elements = {
   activeCampaignName: document.querySelector('#activeCampaignName'),
   activeCampaignMeta: document.querySelector('#activeCampaignMeta'),
   notice: document.querySelector('#notice'),
+  queueHealth: document.querySelector('#queueHealth'),
   leadRows: document.querySelector('#leadRows'),
   activeCalls: document.querySelector('#activeCalls'),
   callLog: document.querySelector('#callLog'),
@@ -98,6 +99,92 @@ function leadZone(lead) {
 function leadMatchesCampaign(lead, campaign) {
   const target = campaignTarget(campaign);
   return target === 'ALL' || leadZone(lead) === target;
+}
+
+function queueSummary(leads) {
+  const summary = {
+    total: leads.length,
+    ready: 0,
+    blocked: 0,
+    topReason: '',
+    topReasonCount: 0
+  };
+  const reasons = new Map();
+
+  for (const lead of leads) {
+    if (lead.dialCheck?.allowed) {
+      summary.ready += 1;
+      continue;
+    }
+
+    summary.blocked += 1;
+    const reason = lead.dialCheck?.reason || 'Not ready';
+    reasons.set(reason, (reasons.get(reason) || 0) + 1);
+  }
+
+  for (const [reason, count] of reasons.entries()) {
+    if (count > summary.topReasonCount) {
+      summary.topReason = reason;
+      summary.topReasonCount = count;
+    }
+  }
+
+  return summary;
+}
+
+function nextQueueAction(summary) {
+  if (!summary.total) return 'Sync HubSpot or create a PowerList with matching owner and timezone.';
+  if (summary.ready) return `${summary.ready} lead${summary.ready === 1 ? '' : 's'} ready for dialing.`;
+
+  const reason = String(summary.topReason || '').toLowerCase();
+  if (reason.includes('outbound calling is disabled')) return 'Wait for Plivo outbound approval, then sync the PowerList.';
+  if (reason.includes('provider error')) return 'Check Plivo Logs and Setup before starting again.';
+  if (reason.includes('consent')) return 'Update Dialer consent to Yes in HubSpot, then sync.';
+  if (reason.includes('do not call') || reason.includes('dnc')) return 'Review the DNC or do_not_call value before dialing.';
+  if (reason.includes('status is not callable')) return 'Add this status to CALLABLE_LEAD_STATUSES or change the HubSpot status.';
+  if (reason.includes('call window')) return 'Adjust the PowerList call window or wait for local calling hours.';
+  if (reason.includes('attempt')) return 'Use a fresh test contact or raise MAX_ATTEMPTS_PER_LEAD for testing.';
+  if (reason.includes('phone')) return 'Fix the contact phone number in HubSpot.';
+  if (reason.includes('campaign')) return 'Change the PowerList timezone or the contact TIME ZONE value.';
+  return summary.topReason || 'Queue is not ready.';
+}
+
+function renderQueueHealth(leads, campaign) {
+  if (!elements.queueHealth) return;
+  if (!campaign) {
+    elements.queueHealth.hidden = true;
+    elements.queueHealth.innerHTML = '';
+    return;
+  }
+
+  const summary = queueSummary(leads);
+  const readyClass = summary.ready ? 'ready' : 'blocked';
+  const topReason = summary.topReason
+    ? `${summary.topReasonCount} blocked: ${summary.topReason}`
+    : 'No blockers';
+
+  elements.queueHealth.hidden = false;
+  elements.queueHealth.innerHTML = `
+    <div class="queue-metrics">
+      <div>
+        <strong>${escapeHtml(summary.total)}</strong>
+        <span>Total leads</span>
+      </div>
+      <div>
+        <strong>${escapeHtml(summary.ready)}</strong>
+        <span>Ready now</span>
+      </div>
+      <div>
+        <strong>${escapeHtml(summary.blocked)}</strong>
+        <span>Blocked</span>
+      </div>
+    </div>
+    <div class="queue-action ${readyClass}">
+      <strong>${summary.ready ? 'Ready to start' : 'Needs attention'}</strong>
+      <span>${escapeHtml(topReason)}</span>
+      <span>${escapeHtml(nextQueueAction(summary))}</span>
+    </div>
+  `;
 }
 
 function formatDuration(seconds) {
@@ -268,6 +355,7 @@ function renderSelectedCampaign() {
   if (!campaign) {
     elements.activeCampaignName.textContent = 'Queue';
     elements.activeCampaignMeta.textContent = 'No campaign selected';
+    renderQueueHealth([], null);
     elements.leadRows.innerHTML = '<tr><td colspan="6">Create a campaign to load the queue.</td></tr>';
     elements.startButton.disabled = true;
     elements.stopButton.disabled = true;
@@ -280,12 +368,14 @@ function renderSelectedCampaign() {
   const campaignLeads = state.leads
     .filter((lead) => lead.ownerId === campaign.ownerId)
     .filter((lead) => leadMatchesCampaign(lead, campaign));
+  const summary = queueSummary(campaignLeads);
   elements.activeCampaignName.textContent = campaign.name;
   elements.activeCampaignMeta.textContent = `${owner?.name || 'Owner'} | ${campaign.status} | ${campaignTarget(campaign)} | ${campaign.maxParallelCalls} lines | ${campaign.callWindowStart}-${campaign.callWindowEnd} local`;
-  elements.startButton.disabled = ['running', 'connected'].includes(campaign.status);
+  elements.startButton.disabled = ['running', 'connected'].includes(campaign.status) || summary.ready === 0;
   elements.stopButton.disabled = !['running', 'connected', 'paused'].includes(campaign.status);
   elements.deleteCampaignButton.disabled = false;
   elements.syncHubSpotButton.disabled = state.settings.leadSource !== 'hubspot';
+  renderQueueHealth(campaignLeads, campaign);
 
   if (!campaignLeads.length) {
     elements.leadRows.innerHTML = '<tr><td colspan="6">No leads match this owner and timezone.</td></tr>';

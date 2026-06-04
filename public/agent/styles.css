@@ -271,6 +271,67 @@ label {
   font-weight: 700;
 }
 
+.queue-health {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(180px, 0.6fr) minmax(260px, 1fr);
+  margin-bottom: 14px;
+}
+
+.queue-metrics {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  overflow: hidden;
+}
+
+.queue-metrics div {
+  background: #f8fbfd;
+  display: grid;
+  gap: 3px;
+  padding: 11px 12px;
+}
+
+.queue-metrics div + div {
+  border-left: 1px solid var(--line);
+}
+
+.queue-metrics strong {
+  color: var(--text);
+  font-size: 22px;
+  line-height: 1;
+}
+
+.queue-metrics span,
+.queue-action span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.queue-action {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 4px;
+  padding: 11px 12px;
+}
+
+.queue-action.ready {
+  background: var(--blue-soft);
+  border-color: #a8dced;
+}
+
+.queue-action.blocked {
+  background: var(--rose-soft);
+  border-color: #efb5bf;
+}
+
+.queue-action strong {
+  color: var(--text);
+  font-size: 13px;
+}
+
 .table-wrap {
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -346,9 +407,11 @@ tr:last-child td {
 .pill.stopped,
 .pill.blocked,
 .pill.failed,
+.pill.provider_error,
 .pill.do_not_call,
 .pill.canceled,
 .pill.disconnected,
+.pill.exhausted,
 .pill.missing {
   background: var(--rose-soft);
   border-color: #efb5bf;
@@ -384,7 +447,8 @@ tr:last-child td {
   .workspace,
   .control-grid,
   .disposition-panel,
-  .disposition-panel form {
+  .disposition-panel form,
+  .queue-health {
     grid-template-columns: 1fr;
   }
 
@@ -415,5 +479,14 @@ tr:last-child td {
 
   .agent-lockup {
     justify-items: start;
+  }
+
+  .queue-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .queue-metrics div + div {
+    border-left: 0;
+    border-top: 1px solid var(--line);
   }
 }

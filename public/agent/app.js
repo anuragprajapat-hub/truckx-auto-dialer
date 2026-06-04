@@ -32,6 +32,7 @@ const elements = {
   dispositionForm: document.querySelector('#dispositionForm'),
   dispositionStatus: document.querySelector('#dispositionStatus'),
   dispositionNote: document.querySelector('#dispositionNote'),
+  queueHealth: document.querySelector('#queueHealth'),
   leadRows: document.querySelector('#leadRows'),
   activeCalls: document.querySelector('#activeCalls'),
   recentCalls: document.querySelector('#recentCalls')
@@ -197,6 +198,90 @@ function pendingDispositionCall() {
   return state.calls.find((call) => call.campaignId === campaign.id && call.requiresDisposition);
 }
 
+function queueSummary(leads) {
+  const summary = {
+    total: leads.length,
+    ready: 0,
+    blocked: 0,
+    topReason: '',
+    topReasonCount: 0
+  };
+  const reasons = new Map();
+
+  for (const lead of leads) {
+    if (lead.dialCheck?.allowed) {
+      summary.ready += 1;
+      continue;
+    }
+
+    summary.blocked += 1;
+    const reason = lead.dialCheck?.reason || 'Not ready';
+    reasons.set(reason, (reasons.get(reason) || 0) + 1);
+  }
+
+  for (const [reason, count] of reasons.entries()) {
+    if (count > summary.topReasonCount) {
+      summary.topReason = reason;
+      summary.topReasonCount = count;
+    }
+  }
+
+  return summary;
+}
+
+function nextQueueAction(summary) {
+  if (!summary.total) return 'Ask admin to sync or assign a PowerList.';
+  if (summary.ready) return 'Ready. Press Start when you are available.';
+
+  const reason = String(summary.topReason || '').toLowerCase();
+  if (reason.includes('provider error')) return 'Ask admin to check carrier approval or Plivo logs.';
+  if (reason.includes('consent')) return 'Ask admin to update consent in HubSpot.';
+  if (reason.includes('call window')) return 'Wait for local calling hours or ask admin to adjust the window.';
+  if (reason.includes('attempt')) return 'Ask admin to reset the test lead or update the attempt limit.';
+  if (reason.includes('status is not callable')) return 'Ask admin to update the lead status rule.';
+  return 'Ask admin to review the PowerList.';
+}
+
+function renderQueueHealth() {
+  if (!elements.queueHealth) return;
+  const campaign = selectedCampaign();
+  const leads = snapshot?.leads || [];
+
+  if (!campaign) {
+    elements.queueHealth.hidden = true;
+    elements.queueHealth.innerHTML = '';
+    return;
+  }
+
+  const summary = queueSummary(leads);
+  const topReason = summary.topReason
+    ? `${summary.topReasonCount} blocked: ${summary.topReason}`
+    : 'No blockers';
+
+  elements.queueHealth.hidden = false;
+  elements.queueHealth.innerHTML = `
+    <div class="queue-metrics">
+      <div>
+        <strong>${escapeHtml(summary.ready)}</strong>
+        <span>Ready</span>
+      </div>
+      <div>
+        <strong>${escapeHtml(summary.blocked)}</strong>
+        <span>Blocked</span>
+      </div>
+    </div>
+    <div class="queue-action ${summary.ready ? 'ready' : 'blocked'}">
+      <strong>${summary.ready ? 'Queue ready' : 'Queue blocked'}</strong>
+      <span>${escapeHtml(topReason)}</span>
+      <span>${escapeHtml(nextQueueAction(summary))}</span>
+    </div>
+  `;
+
+  if (!['running', 'connected'].includes(campaign.status)) {
+    elements.startButton.disabled = summary.ready === 0;
+  }
+}
+
 function renderHeader() {
   const agent = state.agents?.[0] || {};
   const owner = state.owners?.[0] || {};
@@ -315,6 +400,7 @@ function render() {
   renderHeader();
   renderStats();
   renderCampaigns();
+  renderQueueHealth();
   renderLeads();
   renderDisposition();
   renderCalls();
