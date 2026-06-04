@@ -46,6 +46,7 @@ const elements = {
   startButton: document.querySelector('#startButton'),
   stopButton: document.querySelector('#stopButton'),
   deleteCampaignButton: document.querySelector('#deleteCampaignButton'),
+  resetProviderErrorsButton: document.querySelector('#resetProviderErrorsButton'),
   syncHubSpotButton: document.querySelector('#syncHubSpotButton')
 };
 
@@ -138,8 +139,7 @@ function nextQueueAction(summary) {
   if (summary.ready) return `${summary.ready} lead${summary.ready === 1 ? '' : 's'} ready for dialing.`;
 
   const reason = String(summary.topReason || '').toLowerCase();
-  if (reason.includes('outbound calling is disabled')) return 'If Plivo approved outbound calling, click Sync to clear the old carrier error.';
-  if (reason.includes('provider error')) return 'Check Plivo Logs and Setup before starting again.';
+  if (reason.includes('provider error')) return 'If carrier approval is complete, click Retry Errors and then Start.';
   if (reason.includes('consent')) return 'Update Dialer consent to Yes in HubSpot, then sync.';
   if (reason.includes('do not call') || reason.includes('dnc')) return 'Review the DNC or do_not_call value before dialing.';
   if (reason.includes('attempt')) return 'Use a fresh test contact or raise MAX_ATTEMPTS_PER_LEAD for testing.';
@@ -360,6 +360,7 @@ function renderSelectedCampaign() {
     elements.stopButton.disabled = true;
     elements.deleteCampaignButton.disabled = true;
     elements.syncHubSpotButton.disabled = true;
+    elements.resetProviderErrorsButton.disabled = true;
     return;
   }
 
@@ -374,6 +375,7 @@ function renderSelectedCampaign() {
   elements.stopButton.disabled = !['running', 'connected', 'paused'].includes(campaign.status);
   elements.deleteCampaignButton.disabled = false;
   elements.syncHubSpotButton.disabled = state.settings.leadSource !== 'hubspot';
+  elements.resetProviderErrorsButton.disabled = !campaignLeads.some((lead) => lead.status === 'provider_error');
   renderQueueHealth(campaignLeads, campaign);
 
   if (!campaignLeads.length) {
@@ -827,6 +829,23 @@ elements.syncHubSpotButton.addEventListener('click', async () => {
     await loadState();
   } catch (error) {
     setNotice(`HubSpot sync failed: ${error.message}`, 'error');
+  }
+});
+
+elements.resetProviderErrorsButton.addEventListener('click', async () => {
+  const campaign = selectedCampaign();
+  if (!campaign) return;
+  try {
+    const result = await api(`/api/campaigns/${campaign.id}/reset-provider-errors`, { method: 'POST' });
+    setNotice(
+      result.reset
+        ? `Cleared ${result.reset} provider error lead(s). Try Start again with 1 line.`
+        : 'No provider errors to clear.',
+      result.reset ? 'success' : 'info'
+    );
+    await loadState();
+  } catch (error) {
+    setNotice(`Retry reset failed: ${error.message}`, 'error');
   }
 });
 

@@ -628,6 +628,34 @@ export function upsertLeads(leads) {
   });
 }
 
+export function resetProviderErrorsForCampaign(campaignId) {
+  return updateStore((data) => {
+    const campaign = data.campaigns.find((item) => item.id === campaignId);
+    if (!campaign) throw new Error('Campaign not found');
+
+    let reset = 0;
+    for (const lead of data.leads) {
+      if (lead.ownerId !== campaign.ownerId || lead.status !== 'provider_error') continue;
+      lead.status = 'retry';
+      lead.lastOutcome = '';
+      lead.lastProviderError = '';
+      reset += 1;
+    }
+
+    if (reset) {
+      data.events.unshift({
+        id: randomUUID(),
+        type: 'provider_errors_reset',
+        message: `Reset ${reset} provider error lead(s) for ${campaign.name}`,
+        details: { campaignId: campaign.id, count: reset },
+        createdAt: new Date().toISOString()
+      });
+    }
+
+    return { reset };
+  });
+}
+
 export function updateLead(leadId, patch) {
   return updateStore((data) => {
     const lead = data.leads.find((item) => item.id === leadId);

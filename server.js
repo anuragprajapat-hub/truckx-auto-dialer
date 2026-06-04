@@ -21,6 +21,7 @@ import {
   getStore,
   initStore,
   removeDncNumber,
+  resetProviderErrorsForCampaign,
   setCampaignStatus,
   storeBackend,
   touchAgent,
@@ -609,6 +610,14 @@ async function handleApi(request, response, url) {
     assertCampaignAccess(syncCampaignId, request.user);
     const result = await dialerEngine.syncHubSpotLeadsForCampaign(syncCampaignId);
     sendJson(response, result);
+    return true;
+  }
+
+  const resetProviderErrorsCampaignId = campaignIdFromPath(url.pathname, 'reset-provider-errors');
+  if (request.method === 'POST' && resetProviderErrorsCampaignId) {
+    if (requireAdmin(request, response)) return true;
+    assertCampaignAccess(resetProviderErrorsCampaignId, request.user);
+    sendJson(response, resetProviderErrorsForCampaign(resetProviderErrorsCampaignId));
     return true;
   }
 
