@@ -15,6 +15,16 @@ function plivoNumber(phone) {
   return String(phone || '').replace(/^\+/, '');
 }
 
+function webhookUrl(path, params = {}) {
+  const url = new URL(path, config.publicBaseUrl);
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== null && String(value)) {
+      url.searchParams.set(key, String(value));
+    }
+  }
+  return url.toString();
+}
+
 export function createPlivoProvider() {
   return {
     name: 'plivo',
@@ -24,9 +34,17 @@ export function createPlivoProvider() {
       const body = {
         from: plivoNumber(callerIdNumber || config.callerIdNumber),
         to: plivoNumber(campaign.agentPhone),
-        answer_url: `${config.publicBaseUrl}/webhooks/plivo/agent-session?campaignId=${encodeURIComponent(campaign.id)}&sessionId=${encodeURIComponent(session.id)}`,
+        answer_url: webhookUrl('/webhooks/plivo/agent-session', {
+          campaignId: campaign.id,
+          sessionId: session.id,
+          role: 'agent'
+        }),
         answer_method: 'POST',
-        hangup_url: `${config.publicBaseUrl}/webhooks/plivo/status`,
+        hangup_url: webhookUrl('/webhooks/plivo/status', {
+          campaignId: campaign.id,
+          sessionId: session.id,
+          role: 'agent'
+        }),
         hangup_method: 'POST'
       };
 
@@ -59,9 +77,19 @@ export function createPlivoProvider() {
       const body = {
         from: plivoNumber(callerIdNumber || config.callerIdNumber),
         to: plivoNumber(lead.phone),
-        answer_url: `${config.publicBaseUrl}/webhooks/plivo/customer-answer?campaignId=${encodeURIComponent(campaign.id)}&leadId=${encodeURIComponent(lead.id)}&sessionId=${encodeURIComponent(campaign.currentSessionId || '')}`,
+        answer_url: webhookUrl('/webhooks/plivo/customer-answer', {
+          campaignId: campaign.id,
+          leadId: lead.id,
+          sessionId: campaign.currentSessionId || '',
+          role: 'customer'
+        }),
         answer_method: 'POST',
-        hangup_url: `${config.publicBaseUrl}/webhooks/plivo/status`,
+        hangup_url: webhookUrl('/webhooks/plivo/status', {
+          campaignId: campaign.id,
+          leadId: lead.id,
+          sessionId: campaign.currentSessionId || '',
+          role: 'customer'
+        }),
         hangup_method: 'POST'
       };
 

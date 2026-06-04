@@ -183,10 +183,39 @@ export async function updateHubSpotLead(lead, patch) {
     return { skipped: true };
   }
 
-  return hubspotFetch(`/crm/v3/objects/contacts/${lead.hubspotId}`, {
-    method: 'PATCH',
-    body: JSON.stringify({ properties })
-  });
+  const updatePath = `/crm/v3/objects/contacts/${lead.hubspotId}`;
+  try {
+    return await hubspotFetch(updatePath, {
+      method: 'PATCH',
+      body: JSON.stringify({ properties })
+    });
+  } catch (error) {
+    const entries = Object.entries(properties);
+    if (entries.length <= 1) throw error;
+
+    const results = {};
+    const failures = [];
+    for (const [property, value] of entries) {
+      try {
+        results[property] = await hubspotFetch(updatePath, {
+          method: 'PATCH',
+          body: JSON.stringify({ properties: { [property]: value } })
+        });
+      } catch (propertyError) {
+        failures.push(`${property}: ${propertyError.message}`);
+      }
+    }
+
+    if (failures.length === entries.length) {
+      throw new Error(failures.join('; '));
+    }
+
+    return {
+      partial: failures.length > 0,
+      failures,
+      results
+    };
+  }
 }
 
 export async function createHubSpotCallLog(call, lead, outcome) {
@@ -200,7 +229,11 @@ export async function createHubSpotCallLog(call, lead, outcome) {
   const properties = {
     hs_timestamp: startedAt.toISOString(),
     hs_call_title: `TruckX Auto Dialer: ${lead.name || lead.phone}`,
-    hs_call_body: callOutcomeBody(outcome),
+    hs_call_body: [
+      callOutcomeBody(outcome),
+      call.dispositionStatus ? `Agent outcome: ${call.dispositionStatus}.` : '',
+      call.dispositionNote ? `Note: ${call.dispositionNote}` : ''
+    ].filter(Boolean).join(' '),
     hs_call_direction: 'OUTBOUND',
     hs_call_status: 'COMPLETED',
     hs_call_from_number: call.callerIdNumber || config.callerIdNumber,

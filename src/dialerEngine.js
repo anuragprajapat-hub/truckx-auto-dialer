@@ -41,11 +41,33 @@ function providerStatusToOutcome(status, answeredBy) {
 
   if (normalizedAnsweredBy.includes('machine')) return 'voicemail';
   if (normalizedAnsweredBy.includes('human')) return 'live_answer';
-  if (normalizedStatus === 'busy') return 'busy';
-  if (normalizedStatus === 'no-answer' || normalizedStatus === 'no_answer' || normalizedStatus === 'timeout') return 'no_answer';
-  if (normalizedStatus === 'failed' || normalizedStatus === 'canceled' || normalizedStatus === 'cancel') return 'failed';
-  if (normalizedStatus === 'completed') return 'live_answer';
+  if (['busy', 'user_busy'].includes(normalizedStatus)) return 'busy';
+  if (['no-answer', 'no_answer', 'timeout', 'unanswered'].includes(normalizedStatus)) return 'no_answer';
+  if (['failed', 'canceled', 'cancel', 'rejected'].includes(normalizedStatus)) return 'failed';
+  if (['completed', 'complete'].includes(normalizedStatus)) return 'live_answer';
   return '';
+}
+
+function isTerminalProviderStatus(status, raw = {}) {
+  const normalizedStatus = String(status || '').toLowerCase();
+  if ([
+    'completed',
+    'complete',
+    'hangup',
+    'normal_clearing',
+    'normal clearing',
+    'originator_cancel',
+    'cancel',
+    'canceled',
+    'failed',
+    'busy',
+    'no-answer',
+    'no_answer',
+    'timeout'
+  ].includes(normalizedStatus)) {
+    return true;
+  }
+  return Boolean(raw.HangupCause || raw.HangupCauseName || raw.HangupSource);
 }
 
 function providerStatusIsLive(status, answeredBy) {
@@ -233,14 +255,14 @@ export class DialerEngine {
 
       const dncNumbers = new Set((fresh.dncNumbers || []).map((item) => item.phone));
       const activeLeadIds = new Set(activeCalls.map((call) => call.leadId));
-      const sessionLeadIds = new Set(fresh.calls
-        .filter((call) => call.campaignId === campaign.id && call.sessionId === campaign.currentSessionId)
+      const campaignLeadIds = new Set(fresh.calls
+        .filter((call) => call.campaignId === campaign.id)
         .map((call) => call.leadId));
       const leads = fresh.leads
         .filter((lead) => lead.ownerId === campaign.ownerId)
         .filter((lead) => matchesCampaignTimeZone(lead, campaign))
         .filter((lead) => !activeLeadIds.has(lead.id))
-        .filter((lead) => !sessionLeadIds.has(lead.id))
+        .filter((lead) => !campaignLeadIds.has(lead.id))
         .filter((lead) => evaluateLeadForDial(lead, campaign, { dncNumbers }).allowed)
         .slice(0, openSlots);
 
@@ -248,7 +270,7 @@ export class DialerEngine {
         const anyCandidate = fresh.leads.some((lead) => (
           lead.ownerId === campaign.ownerId
           && matchesCampaignTimeZone(lead, campaign)
-          && !sessionLeadIds.has(lead.id)
+          && !campaignLeadIds.has(lead.id)
         ));
         if (!anyCandidate) {
           await this.stopCampaign(campaign.id, 'complete');
@@ -401,6 +423,50 @@ export class DialerEngine {
     }
   }
 
+  async updateHubSpotLeadSafe(call, lead, patch, eventType = 'hubspot_write_failed') {
+    if (config.leadSource !== 'hubspot') return { skipped: true };
+    try {
+      const result = await updateHubSpotLead(lead, patch);
+      if (result?.partial) {
+        addEvent('hubspot_partial_update', `HubSpot partially updated ${lead.name}`, {
+          campaignId: call.campaignId,
+          callId: call.id,
+          leadId: lead.id,
+          failures: result.failures || []
+        });
+      }
+      return result;
+    } catch (error) {
+      addEvent(eventType, error.message, {
+        campaignId: call.campaignId,
+        callId: call.id,
+        leadId: lead.id,
+        patch
+      });
+      return { error: error.message };
+    }
+  }
+
+  async createHubSpotCallLogSafe(call, lead, outcome, eventType = 'hubspot_call_log_failed') {
+    if (config.leadSource !== 'hubspot' || call.hubspotCallLoggedAt) return { skipped: true };
+    try {
+      const result = await createHubSpotCallLog(call, lead, outcome);
+      updateCall(call.id, {
+        hubspotCallLoggedAt: new Date().toISOString(),
+        hubspotCallLogId: result?.id || call.hubspotCallLogId || ''
+      });
+      return result;
+    } catch (error) {
+      addEvent(eventType, error.message, {
+        campaignId: call.campaignId,
+        callId: call.id,
+        leadId: lead.id,
+        outcome
+      });
+      return { error: error.message };
+    }
+  }
+
   async completeCall(call, outcome, raw = {}) {
     const completedAt = new Date().toISOString();
     const leadStatus = outcomeToLeadStatus(outcome, call.attempt);
@@ -422,21 +488,13 @@ export class DialerEngine {
         lastOutcome: outcome
       });
 
-      if (config.leadSource === 'hubspot') {
-        try {
-          await updateHubSpotLead(updatedLead, {
-            status: leadStatus,
-            lastOutcome: outcome,
-            attempts: updatedLead.attempts
-          });
-          await createHubSpotCallLog(updatedCall, updatedLead, outcome);
-        } catch (error) {
-          addEvent('hubspot_write_failed', error.message, {
-            campaignId: call.campaignId,
-            callId: call.id,
-            leadId: lead.id
-          });
-        }
+      await this.updateHubSpotLeadSafe(updatedCall, updatedLead, {
+        status: leadStatus,
+        lastOutcome: outcome,
+        attempts: updatedLead.attempts
+      });
+      if (!requiresDisposition) {
+        await this.createHubSpotCallLogSafe(updatedCall, updatedLead, outcome);
       }
     }
 
@@ -548,8 +606,12 @@ export class DialerEngine {
   }
 
   async completeAgentSession(providerCallId, providerStatus, raw = {}) {
+    if (!providerCallId && raw.role !== 'agent') return null;
     const data = getStore();
-    const session = data.sessions.find((item) => item.agentCallId === providerCallId || item.agentLiveCallId === providerCallId);
+    const session = data.sessions.find((item) => (
+      (providerCallId && (item.agentCallId === providerCallId || item.agentLiveCallId === providerCallId))
+      || (raw.role === 'agent' && raw.sessionId && item.id === raw.sessionId)
+    ));
     if (!session) return null;
 
     updateSession(session.id, {
@@ -635,8 +697,13 @@ export class DialerEngine {
 
     const status = String(input.status || '').trim();
     if (!status) throw new Error('Lead status is required');
+    const completedAt = call.completedAt || new Date().toISOString();
+    const callOutcome = call.outcome || 'live_answer';
 
     const updatedCall = updateCall(call.id, {
+      status: 'completed',
+      completedAt,
+      outcome: callOutcome,
       requiresDisposition: false,
       dispositionStatus: status,
       dispositionNote: String(input.note || '').trim(),
@@ -645,24 +712,19 @@ export class DialerEngine {
 
     const updatedLead = updateLead(lead.id, {
       status,
-      lastOutcome: call.outcome || lead.lastOutcome
+      lastOutcome: status
     });
 
-    if (config.leadSource === 'hubspot') {
-      try {
-        await updateHubSpotLead(updatedLead, {
-          status,
-          lastOutcome: updatedLead.lastOutcome,
-          attempts: updatedLead.attempts
-        });
-      } catch (error) {
-        addEvent('hubspot_disposition_failed', error.message, {
-          campaignId: call.campaignId,
-          callId: call.id,
-          leadId: lead.id
-        });
-      }
-    }
+    await this.updateHubSpotLeadSafe(updatedCall, updatedLead, {
+      status,
+      lastOutcome: status,
+      attempts: updatedLead.attempts
+    }, 'hubspot_disposition_failed');
+    await this.createHubSpotCallLogSafe(
+      { ...updatedCall, dispositionStatus: status, dispositionNote: String(input.note || '').trim() },
+      updatedLead,
+      status
+    );
 
     addEvent('call_disposition_saved', `${call.leadName} set to ${status}`, {
       campaignId: call.campaignId,
@@ -680,7 +742,10 @@ export class DialerEngine {
 
   async completeProviderCall(providerCallId, providerStatus, answeredBy, raw = {}) {
     const data = getStore();
-    const call = data.calls.find((item) => item.providerCallId === providerCallId || item.providerLiveCallId === providerCallId);
+    const call = data.calls.find((item) => (
+      (providerCallId && (item.providerCallId === providerCallId || item.providerLiveCallId === providerCallId))
+      || (raw.campaignId && raw.leadId && item.campaignId === raw.campaignId && item.leadId === raw.leadId && !item.completedAt)
+    ));
     if (!call) {
       const session = await this.completeAgentSession(providerCallId, providerStatus, raw);
       if (session) return session;
@@ -697,7 +762,10 @@ export class DialerEngine {
       return call;
     }
 
-    const outcome = providerStatusToOutcome(providerStatus, answeredBy);
+    let outcome = providerStatusToOutcome(providerStatus, answeredBy);
+    if (!outcome && call.status === 'in_progress' && isTerminalProviderStatus(providerStatus, raw)) {
+      outcome = 'live_answer';
+    }
     if (!outcome) {
       updateCall(call.id, {
         status: providerStatus || call.status,

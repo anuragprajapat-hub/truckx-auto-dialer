@@ -309,6 +309,16 @@ function bodyValue(body = {}, names = []) {
   return '';
 }
 
+function webhookContext(url, body = {}) {
+  return {
+    ...body,
+    campaignId: body.campaignId || url.searchParams.get('campaignId') || '',
+    leadId: body.leadId || url.searchParams.get('leadId') || '',
+    sessionId: body.sessionId || url.searchParams.get('sessionId') || '',
+    role: body.role || url.searchParams.get('role') || ''
+  };
+}
+
 function bridgeDetails(url) {
   const campaignId = url.searchParams.get('campaignId') || '';
   const leadId = url.searchParams.get('leadId') || '';
@@ -803,14 +813,26 @@ async function handleWebhooks(request, response, url) {
 
   if (request.method === 'POST' && url.pathname === '/webhooks/plivo/status') {
     const body = await parseBody(request);
-    const call = await dialerEngine.completeProviderCall(body.RequestUUID || body.CallUUID, body.CallStatus || body.HangupCause, body.AnsweredBy || body.Machine, body);
+    const raw = webhookContext(url, body);
+    const call = await dialerEngine.completeProviderCall(
+      body.RequestUUID || body.CallUUID || body.RequestUuid || body.CallUuid,
+      body.CallStatus || body.HangupCause || body.HangupCauseName || body.Event,
+      body.AnsweredBy || body.Machine,
+      raw
+    );
     sendJson(response, { ok: true, call });
     return true;
   }
 
   if (request.method === 'POST' && url.pathname === '/webhooks/plivo/machine') {
     const body = await parseBody(request);
-    const call = await dialerEngine.completeProviderCall(body.RequestUUID || body.CallUUID, body.CallStatus, body.Machine, body);
+    const raw = webhookContext(url, body);
+    const call = await dialerEngine.completeProviderCall(
+      body.RequestUUID || body.CallUUID || body.RequestUuid || body.CallUuid,
+      body.CallStatus || body.HangupCause || body.HangupCauseName || body.Event,
+      body.Machine,
+      raw
+    );
     sendJson(response, { ok: true, call });
     return true;
   }
