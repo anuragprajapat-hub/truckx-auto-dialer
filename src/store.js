@@ -615,6 +615,10 @@ export function upsertLeads(leads) {
     for (const incoming of leads) {
       const existing = byHubspotId.get(incoming.hubspotId);
       if (existing) {
+        if (existing.status === 'provider_error') {
+          incoming.status = incoming.status === 'provider_error' ? 'retry' : incoming.status || 'retry';
+          incoming.lastProviderError = '';
+        }
         Object.assign(existing, incoming, { id: existing.id });
       } else {
         data.leads.push({ ...incoming, id: incoming.id || randomUUID() });

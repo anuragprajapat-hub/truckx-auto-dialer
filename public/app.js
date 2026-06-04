@@ -138,7 +138,7 @@ function nextQueueAction(summary) {
   if (summary.ready) return `${summary.ready} lead${summary.ready === 1 ? '' : 's'} ready for dialing.`;
 
   const reason = String(summary.topReason || '').toLowerCase();
-  if (reason.includes('outbound calling is disabled')) return 'Wait for Plivo outbound approval, then sync the PowerList.';
+  if (reason.includes('outbound calling is disabled')) return 'If Plivo approved outbound calling, click Sync to clear the old carrier error.';
   if (reason.includes('provider error')) return 'Check Plivo Logs and Setup before starting again.';
   if (reason.includes('consent')) return 'Update Dialer consent to Yes in HubSpot, then sync.';
   if (reason.includes('do not call') || reason.includes('dnc')) return 'Review the DNC or do_not_call value before dialing.';
