@@ -23,14 +23,11 @@ export function createPlivoProvider() {
 
       const body = {
         from: plivoNumber(callerIdNumber || config.callerIdNumber),
-        to: plivoNumber(lead.phone),
-        answer_url: `${config.publicBaseUrl}/webhooks/plivo/answer?campaignId=${encodeURIComponent(campaign.id)}&leadId=${encodeURIComponent(lead.id)}`,
+        to: plivoNumber(campaign.agentPhone),
+        answer_url: `${config.publicBaseUrl}/webhooks/plivo/agent-answer?campaignId=${encodeURIComponent(campaign.id)}&leadId=${encodeURIComponent(lead.id)}`,
         answer_method: 'POST',
         hangup_url: `${config.publicBaseUrl}/webhooks/plivo/status`,
-        hangup_method: 'POST',
-        machine_detection: 'true',
-        machine_detection_url: `${config.publicBaseUrl}/webhooks/plivo/machine`,
-        machine_detection_method: 'POST'
+        hangup_method: 'POST'
       };
 
       const response = await fetch(`https://api.plivo.com/v1/Account/${config.plivo.authId}/Call/`, {

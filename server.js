@@ -209,6 +209,7 @@ function setupStatus() {
       twilioAnswer: `${publicUrl}/webhooks/twilio/answer`,
       twilioStatus: `${publicUrl}/webhooks/twilio/status`,
       plivoAnswer: `${publicUrl}/webhooks/plivo/answer`,
+      plivoAgentAnswer: `${publicUrl}/webhooks/plivo/agent-answer`,
       plivoStatus: `${publicUrl}/webhooks/plivo/status`,
       plivoMachine: `${publicUrl}/webhooks/plivo/machine`
     }
@@ -292,11 +293,13 @@ function bridgeDetails(url) {
   const leadId = url.searchParams.get('leadId') || '';
   const data = getStore();
   const campaign = data.campaigns.find((item) => item.id === campaignId);
+  const lead = data.leads.find((item) => item.id === leadId);
   const call = data.calls.find((item) => item.campaignId === campaignId && item.leadId === leadId && !item.completedAt);
 
   return {
     campaign,
     agentPhone: campaign?.agentPhone || call?.agentPhone || config.defaultAgentPhone,
+    leadPhone: call?.leadPhone || normalizeUsPhone(lead?.phone) || lead?.phone || '',
     callerIdNumber: call?.callerIdNumber || config.callerIdNumber,
     voicemailDrop: Boolean(campaign?.voicemailDrop),
     voicemailAudioUrl: config.voicemailAudioUrl
@@ -743,6 +746,27 @@ async function handleWebhooks(request, response, url) {
       '<?xml version="1.0" encoding="UTF-8"?>',
       '<Response>',
       `<Dial callerId="${escapeXml(plivoNumber(details.callerIdNumber))}"><Number>${escapeXml(plivoNumber(details.agentPhone))}</Number></Dial>`,
+      '</Response>'
+    ].join(''));
+    return true;
+  }
+
+  if (request.method === 'POST' && url.pathname === '/webhooks/plivo/agent-answer') {
+    const details = bridgeDetails(url);
+    if (!details.leadPhone) {
+      sendXml(response, [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<Response>',
+        '<Hangup/>',
+        '</Response>'
+      ].join(''));
+      return true;
+    }
+
+    sendXml(response, [
+      '<?xml version="1.0" encoding="UTF-8"?>',
+      '<Response>',
+      `<Dial callerId="${escapeXml(plivoNumber(details.callerIdNumber))}" dialMusic="real"><Number>${escapeXml(plivoNumber(details.leadPhone))}</Number></Dial>`,
       '</Response>'
     ].join(''));
     return true;
