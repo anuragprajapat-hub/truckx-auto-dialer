@@ -592,6 +592,9 @@ async function handleApi(request, response, url) {
   if (request.method === 'POST' && startCampaignId) {
     assertCampaignAccess(startCampaignId, request.user);
     const campaign = setCampaignStatus(startCampaignId, 'running');
+    dialerEngine.tick().catch((error) => {
+      addEvent('engine_error', error.message, { campaignId: startCampaignId, source: 'manual_start' });
+    });
     sendJson(response, campaign);
     return true;
   }

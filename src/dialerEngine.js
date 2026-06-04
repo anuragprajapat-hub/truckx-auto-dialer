@@ -177,6 +177,15 @@ export class DialerEngine {
         callerIdNumber
       });
 
+      addEvent('provider_call_accepted', `${providerCall.provider} accepted call request for ${lead.name}`, {
+        campaignId: campaign.id,
+        leadId: lead.id,
+        provider: providerCall.provider,
+        providerCallId: providerCall.providerCallId,
+        leadPhone: allowed.phone,
+        callerIdNumber
+      });
+
       updateLead(lead.id, {
         phone: allowed.phone,
         attempts: attempt,
