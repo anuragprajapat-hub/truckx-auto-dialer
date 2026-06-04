@@ -780,7 +780,7 @@ elements.startButton.addEventListener('click', async () => {
   if (!campaign) return;
   try {
     await api(`/api/campaigns/${campaign.id}/start`, { method: 'POST' });
-    setNotice('Campaign started.', 'success');
+    setNotice('Campaign started and dial attempt checked. Review Active Calls, Recent Calls, or Dial Check below.', 'success');
     await loadState();
   } catch (error) {
     setNotice(`Start failed: ${error.message}`, 'error');
