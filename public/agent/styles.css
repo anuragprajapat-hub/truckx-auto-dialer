@@ -248,14 +248,30 @@ label {
 
 .disposition-panel {
   align-items: center;
-  background: #f8fbfd;
+  background: rgba(18, 24, 33, 0.42);
+  display: grid;
+  inset: 0;
+  justify-items: center;
+  padding: 20px;
+  position: fixed;
+  z-index: 50;
+}
+
+.disposition-card {
+  background: #ffffff;
   border: 1px solid var(--line);
   border-radius: 8px;
+  box-shadow: 0 22px 60px rgba(17, 30, 44, 0.24);
   display: grid;
-  gap: 12px;
-  grid-template-columns: minmax(180px, 1fr) minmax(260px, 1.4fr);
-  margin-bottom: 14px;
-  padding: 12px;
+  gap: 14px;
+  max-width: 620px;
+  padding: 18px;
+  width: min(620px, 100%);
+}
+
+.disposition-card p {
+  font-size: 13px;
+  margin-top: 5px;
 }
 
 .audio-status {
@@ -293,13 +309,13 @@ label {
   border-color: #efb5bf;
 }
 
-.disposition-panel form {
+.disposition-card form {
   display: grid;
   gap: 8px;
   grid-template-columns: minmax(140px, 1fr) minmax(120px, 1fr) auto;
 }
 
-.disposition-panel form button {
+.disposition-card form button {
   background: var(--blue);
   border-color: var(--blue);
   color: #ffffff;
@@ -443,6 +459,7 @@ tr:last-child td {
 .pill.blocked,
 .pill.failed,
 .pill.provider_error,
+.pill.abandoned,
 .pill.do_not_call,
 .pill.canceled,
 .pill.disconnected,
@@ -481,8 +498,7 @@ tr:last-child td {
 @media (max-width: 1020px) {
   .workspace,
   .control-grid,
-  .disposition-panel,
-  .disposition-panel form,
+  .disposition-card form,
   .queue-health {
     grid-template-columns: 1fr;
   }

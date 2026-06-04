@@ -79,24 +79,26 @@
           <section id="audioStatus" class="audio-status" hidden aria-live="polite"></section>
 
           <section id="dispositionPanel" class="disposition-panel" hidden>
-            <div>
-              <h2>After-call status</h2>
-              <p id="dispositionLead"></p>
+            <div class="disposition-card">
+              <div>
+                <h2>After-call status</h2>
+                <p id="dispositionLead"></p>
+              </div>
+              <form id="dispositionForm">
+                <select id="dispositionStatus" required>
+                  <option value="">Select status</option>
+                  <option value="follow_up">Follow up</option>
+                  <option value="qualified">Qualified</option>
+                  <option value="not_interested">Not interested</option>
+                  <option value="bad_timing">Bad timing</option>
+                  <option value="do_not_call">Do not call</option>
+                  <option value="connected">Connected</option>
+                  <option value="new">New</option>
+                </select>
+                <input id="dispositionNote" placeholder="Note">
+                <button type="submit">Save</button>
+              </form>
             </div>
-            <form id="dispositionForm">
-              <select id="dispositionStatus" required>
-                <option value="">Select status</option>
-                <option value="follow_up">Follow up</option>
-                <option value="qualified">Qualified</option>
-                <option value="not_interested">Not interested</option>
-                <option value="bad_timing">Bad timing</option>
-                <option value="do_not_call">Do not call</option>
-                <option value="connected">Connected</option>
-                <option value="new">New</option>
-              </select>
-              <input id="dispositionNote" placeholder="Note">
-              <button type="submit">Save</button>
-            </form>
           </section>
 
           <section id="queueHealth" class="queue-health" aria-live="polite"></section>
@@ -131,6 +133,13 @@
               <h2>Recent calls</h2>
             </div>
             <div id="recentCalls" class="card-list"></div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-heading">
+              <h2>Abandoned</h2>
+            </div>
+            <div id="abandonedCalls" class="card-list"></div>
           </section>
         </aside>
       </section>

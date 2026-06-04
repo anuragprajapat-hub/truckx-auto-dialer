@@ -936,7 +936,17 @@ async function handleWebhooks(request, response, url) {
       return true;
     }
 
-    await dialerEngine.markCustomerAnswered(campaignId, leadId, body);
+    const result = await dialerEngine.markCustomerAnswered(campaignId, leadId, body);
+    if (result?.abandoned) {
+      sendXml(response, [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<Response>',
+        '<Hangup/>',
+        '</Response>'
+      ].join(''));
+      return true;
+    }
+
     sendXml(response, conferenceXml(details.conferenceName, {
       startConferenceOnEnter: 'true',
       endConferenceOnExit: 'false',

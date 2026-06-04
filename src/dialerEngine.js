@@ -20,6 +20,7 @@ import { selectCallerIdNumber } from './voice/callerId.js';
 const ACTIVE_STATUSES = new Set(['dialing', 'queued', 'ringing', 'in_progress']);
 const CANCELABLE_STATUSES = new Set(['dialing', 'queued', 'ringing', 'in_progress']);
 const SESSION_ACTIVE_STATUSES = new Set(['dialing', 'queued', 'ringing', 'in_progress']);
+const LIVE_CALL_STATUSES = new Set(['in_progress']);
 
 function conferenceNameFor(campaignId, sessionId) {
   return `truckx-${String(campaignId || '').slice(0, 8)}-${String(sessionId || '').slice(0, 8)}`;
@@ -53,6 +54,10 @@ function providerStatusIsLive(status, answeredBy) {
   if (normalizedAnsweredBy.includes('machine')) return false;
   if (normalizedAnsweredBy.includes('human')) return true;
   return ['answered', 'in-progress', 'in_progress'].includes(normalizedStatus);
+}
+
+function campaignLineCount(campaign) {
+  return Math.max(1, Math.min(10, Number(campaign?.maxParallelCalls || 1)));
 }
 
 export class DialerEngine {
@@ -212,7 +217,17 @@ export class DialerEngine {
       }
 
       const activeCalls = fresh.calls.filter((call) => call.campaignId === campaign.id && ACTIVE_STATUSES.has(call.status));
-      const maxParallelCalls = this.usesPersistentAgentSession() ? 1 : Number(campaign.maxParallelCalls || 1);
+      const waitingForDisposition = fresh.calls.some((call) => (
+        call.campaignId === campaign.id
+        && call.sessionId === campaign.currentSessionId
+        && call.requiresDisposition
+      ));
+      const agentInConversation = activeCalls.some((call) => LIVE_CALL_STATUSES.has(call.status));
+      if (waitingForDisposition || agentInConversation) continue;
+
+      const maxParallelCalls = this.usesBrowserAgentSession()
+        ? campaignLineCount(campaign)
+        : this.usesPersistentAgentSession() ? 1 : campaignLineCount(campaign);
       const openSlots = Math.max(0, maxParallelCalls - activeCalls.length);
       if (!openSlots) continue;
 
@@ -444,7 +459,20 @@ export class DialerEngine {
   async markCustomerAnswered(campaignId, leadId, raw = {}) {
     const data = getStore();
     const call = data.calls.find((item) => item.campaignId === campaignId && item.leadId === leadId && !item.completedAt);
-    if (!call) return null;
+    if (!call) return { call: null, abandoned: true };
+
+    const existingLiveCall = data.calls.find((item) => (
+      item.campaignId === campaignId
+      && item.sessionId === call.sessionId
+      && item.id !== call.id
+      && !item.completedAt
+      && LIVE_CALL_STATUSES.has(item.status)
+    ));
+
+    if (existingLiveCall) {
+      const abandonedCall = await this.abandonCall(call, 'another_customer_connected', raw);
+      return { call: abandonedCall, abandoned: true };
+    }
 
     const updatedCall = updateCall(call.id, {
       status: 'in_progress',
@@ -453,10 +481,40 @@ export class DialerEngine {
       raw
     });
 
+    await this.cancelCompetingCalls(updatedCall);
+
     addEvent('customer_joined_agent_session', `${call.leadName} answered and joined the agent session`, {
       campaignId,
       callId: call.id,
       leadId
+    });
+
+    return { call: updatedCall, abandoned: false };
+  }
+
+  async abandonCall(call, reason = 'agent_busy', raw = {}) {
+    const completedAt = new Date().toISOString();
+    const updatedCall = updateCall(call.id, {
+      status: 'completed',
+      completedAt,
+      answeredAt: call.answeredAt || completedAt,
+      outcome: 'abandoned',
+      abandonReason: reason,
+      requiresDisposition: false,
+      providerLiveCallId: raw.CallUUID || call.providerLiveCallId || '',
+      raw
+    });
+
+    updateLead(call.leadId, {
+      status: 'retry',
+      lastOutcome: 'abandoned'
+    });
+
+    addEvent('call_abandoned', `${call.leadName} answered after another call was already connected`, {
+      campaignId: call.campaignId,
+      callId: call.id,
+      leadId: call.leadId,
+      reason
     });
 
     return updatedCall;
@@ -612,6 +670,11 @@ export class DialerEngine {
       leadId: lead.id
     });
 
+    const campaign = getStore().campaigns.find((item) => item.id === call.campaignId);
+    if (campaign?.status === 'running') {
+      await this.tick();
+    }
+
     return { call: updatedCall, lead: updatedLead };
   }
 
@@ -624,6 +687,14 @@ export class DialerEngine {
 
       addEvent('unknown_provider_call', `No local call matched provider id ${providerCallId}`, raw);
       return null;
+    }
+
+    if (call.completedAt || call.outcome === 'abandoned') {
+      updateCall(call.id, {
+        lastProviderStatus: providerStatus || call.lastProviderStatus || '',
+        rawHangup: raw
+      });
+      return call;
     }
 
     const outcome = providerStatusToOutcome(providerStatus, answeredBy);

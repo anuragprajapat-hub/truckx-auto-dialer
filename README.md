@@ -83,6 +83,8 @@ Then create a Plivo Endpoint, attach it to that application, and put the endpoin
 
 The current browser mode is ready for one shared test endpoint. For multiple live agents, create one Plivo Endpoint per agent and store separate endpoint credentials per agent before running concurrent sessions.
 
+In browser mode, the PowerList `Lines` value controls predictive customer dialing. If `Lines` is `3`, TruckX can ring up to 3 customer numbers while the agent is idle in the browser audio session. As soon as one customer answers, TruckX cancels the remaining ringing calls and pauses new dialing until that conversation ends and the agent saves the after-call outcome. If another customer answers after the agent is already connected, TruckX hangs up that extra customer leg and records it as `abandoned` so it is visible in the agent and admin Live views.
+
 For separate agent logins, set `APP_USERS` instead of only one global login:
 
 ```text

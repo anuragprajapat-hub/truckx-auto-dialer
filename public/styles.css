@@ -296,6 +296,10 @@ h3 {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+#view-live .live-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .report-filters {
   display: flex;
   gap: 10px;
@@ -608,6 +612,7 @@ tr:last-child td {
 .pill.connected_pending,
 .pill.failed,
 .pill.provider_error,
+.pill.abandoned,
 .pill.do_not_call,
 .pill.blocked,
 .pill.exhausted,

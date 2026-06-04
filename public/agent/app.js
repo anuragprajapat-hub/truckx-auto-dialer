@@ -12,6 +12,7 @@ let softphoneCallActive = false;
 let softphoneLoginWaiter = null;
 let softphoneMode = 'phone';
 let softphoneConfigCache = null;
+let activeDispositionCallId = '';
 let softphoneStatus = {
   kind: 'idle',
   title: 'Browser audio not connected',
@@ -47,7 +48,8 @@ const elements = {
   queueHealth: document.querySelector('#queueHealth'),
   leadRows: document.querySelector('#leadRows'),
   activeCalls: document.querySelector('#activeCalls'),
-  recentCalls: document.querySelector('#recentCalls')
+  recentCalls: document.querySelector('#recentCalls'),
+  abandonedCalls: document.querySelector('#abandonedCalls')
 };
 
 function escapeHtml(value) {
@@ -600,18 +602,23 @@ function renderDisposition() {
   if (!call) {
     elements.dispositionPanel.hidden = true;
     elements.dispositionForm.dataset.callId = '';
+    activeDispositionCallId = '';
     return;
   }
 
+  const isNewDisposition = activeDispositionCallId !== call.id;
+  activeDispositionCallId = call.id;
   elements.dispositionPanel.hidden = false;
   elements.dispositionLead.textContent = `${call.leadName} | ${call.leadPhone} | ${call.outcome || 'completed'}`;
   elements.dispositionForm.dataset.callId = call.id;
+  if (isNewDisposition) elements.dispositionStatus.focus();
 }
 
 function renderCalls() {
   const campaign = selectedCampaign();
   const calls = state.calls.filter((call) => !campaign || call.campaignId === campaign.id);
   const activeCalls = calls.filter((call) => ACTIVE_STATUSES.has(call.status));
+  const abandonedCalls = calls.filter((call) => call.outcome === 'abandoned').slice(0, 8);
   elements.activeCalls.innerHTML = activeCalls.length
     ? activeCalls.map((call) => `
       <div class="call-card">
@@ -631,6 +638,16 @@ function renderCalls() {
       </div>
     `).join('')
     : '<div class="empty">No calls yet</div>';
+
+  elements.abandonedCalls.innerHTML = abandonedCalls.length
+    ? abandonedCalls.map((call) => `
+      <div class="call-card">
+        <strong>${escapeHtml(call.leadName)}</strong>
+        <span>${escapeHtml(call.leadPhone)} | ${escapeHtml(call.abandonReason || 'agent busy')}</span>
+        ${statusPill('abandoned')}
+      </div>
+    `).join('')
+    : '<div class="empty">No abandoned calls</div>';
 }
 
 function render() {
@@ -727,7 +744,7 @@ elements.dispositionForm.addEventListener('submit', async (event) => {
       })
     });
     elements.dispositionForm.reset();
-    setNotice('Lead status saved.', 'success');
+    setNotice('Lead status saved. TruckX will resume dialing when the queue is ready.', 'success');
     await loadState();
   } catch (error) {
     setNotice(error.message, 'error');

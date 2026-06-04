@@ -24,6 +24,7 @@ function blankReport(owner) {
     noAnswer: 0,
     busy: 0,
     failed: 0,
+    abandoned: 0,
     canceled: 0
   };
 }
@@ -56,6 +57,7 @@ export function buildAgentReports(data, now = new Date()) {
     if (call.outcome === 'no_answer') report.noAnswer += 1;
     if (call.outcome === 'busy') report.busy += 1;
     if (call.outcome === 'failed') report.failed += 1;
+    if (call.outcome === 'abandoned') report.abandoned += 1;
     if (String(call.outcome || '').startsWith('canceled')) report.canceled += 1;
   }
 

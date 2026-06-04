@@ -24,6 +24,7 @@ const elements = {
   leadRows: document.querySelector('#leadRows'),
   activeCalls: document.querySelector('#activeCalls'),
   callLog: document.querySelector('#callLog'),
+  abandonedCalls: document.querySelector('#abandonedCalls'),
   eventLog: document.querySelector('#eventLog'),
   setupStatus: document.querySelector('#setupStatus'),
   agentReports: document.querySelector('#agentReports'),
@@ -431,6 +432,7 @@ function renderCalls() {
   const activeStatuses = ['dialing', 'queued', 'ringing', 'in_progress'];
   const activeCalls = state.calls.filter((call) => (!campaign || call.campaignId === campaign.id) && activeStatuses.includes(call.status));
   const logs = state.calls.filter((call) => !campaign || call.campaignId === campaign.id).slice(0, 12);
+  const abandonedCalls = state.calls.filter((call) => (!campaign || call.campaignId === campaign.id) && call.outcome === 'abandoned').slice(0, 12);
 
   elements.activeCalls.innerHTML = activeCalls.length
     ? activeCalls
@@ -455,6 +457,18 @@ function renderCalls() {
         `)
         .join('')
     : '<div class="empty">No calls yet</div>';
+
+  elements.abandonedCalls.innerHTML = abandonedCalls.length
+    ? abandonedCalls
+        .map((call) => `
+          <div class="log-item">
+            <strong>${escapeHtml(call.leadName)}</strong>
+            <span>${escapeHtml(new Date(call.completedAt || call.startedAt).toLocaleTimeString())} | ${escapeHtml(call.leadPhone)}</span>
+            ${statusPill('abandoned')}
+          </div>
+        `)
+        .join('')
+    : '<div class="empty">No abandoned calls</div>';
 }
 
 function renderEvents() {
@@ -544,6 +558,7 @@ function renderReports() {
               <span>${escapeHtml(report.totalCalls)} calls</span>
               <span>${escapeHtml(report.connected)} live</span>
               <span>${escapeHtml(report.voicemail)} VM</span>
+              <span>${escapeHtml(report.abandoned || 0)} abandoned</span>
               <span>${escapeHtml(formatDuration(report.dialerSeconds))}</span>
               <span>${escapeHtml(report.activeCalls)} active</span>
               <span>${escapeHtml(report.noAnswer)} no answer</span>
@@ -567,11 +582,12 @@ function renderReports() {
             <td>${escapeHtml(report.connected)}</td>
             <td>${escapeHtml(report.voicemail)}</td>
             <td>${escapeHtml(report.noAnswer)}</td>
+            <td>${escapeHtml(report.abandoned || 0)}</td>
             <td>${escapeHtml(formatDuration(report.dialerSeconds))}</td>
           </tr>
         `)
         .join('')
-    : '<tr><td colspan="6">No agent activity yet.</td></tr>';
+    : '<tr><td colspan="7">No agent activity yet.</td></tr>';
 }
 
 function renderHistory() {
@@ -762,7 +778,7 @@ elements.dispositionForm.addEventListener('submit', async (event) => {
       })
     });
     elements.dispositionForm.reset();
-    setNotice('Lead status saved. Press Start when the agent is ready to keep dialing.', 'success');
+    setNotice('Lead status saved. TruckX will resume dialing when the queue is ready.', 'success');
     await loadState();
   } catch (error) {
     setNotice(`Status save failed: ${error.message}`, 'error');
