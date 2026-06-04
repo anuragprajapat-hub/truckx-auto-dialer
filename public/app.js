@@ -98,7 +98,8 @@ function leadZone(lead) {
 
 function leadMatchesCampaign(lead, campaign) {
   const target = campaignTarget(campaign);
-  return target === 'ALL' || leadZone(lead) === target;
+  const zone = leadZone(lead);
+  return target === 'ALL' || zone === target || zone === 'UNASSIGNED';
 }
 
 function queueSummary(leads) {
@@ -141,8 +142,6 @@ function nextQueueAction(summary) {
   if (reason.includes('provider error')) return 'Check Plivo Logs and Setup before starting again.';
   if (reason.includes('consent')) return 'Update Dialer consent to Yes in HubSpot, then sync.';
   if (reason.includes('do not call') || reason.includes('dnc')) return 'Review the DNC or do_not_call value before dialing.';
-  if (reason.includes('status is not callable')) return 'Add this status to CALLABLE_LEAD_STATUSES or change the HubSpot status.';
-  if (reason.includes('call window')) return 'Adjust the PowerList call window or wait for local calling hours.';
   if (reason.includes('attempt')) return 'Use a fresh test contact or raise MAX_ATTEMPTS_PER_LEAD for testing.';
   if (reason.includes('phone')) return 'Fix the contact phone number in HubSpot.';
   if (reason.includes('campaign')) return 'Change the PowerList timezone or the contact TIME ZONE value.';
@@ -370,7 +369,7 @@ function renderSelectedCampaign() {
     .filter((lead) => leadMatchesCampaign(lead, campaign));
   const summary = queueSummary(campaignLeads);
   elements.activeCampaignName.textContent = campaign.name;
-  elements.activeCampaignMeta.textContent = `${owner?.name || 'Owner'} | ${campaign.status} | ${campaignTarget(campaign)} | ${campaign.maxParallelCalls} lines | ${campaign.callWindowStart}-${campaign.callWindowEnd} local`;
+  elements.activeCampaignMeta.textContent = `${owner?.name || 'Owner'} | ${campaign.status} | ${campaignTarget(campaign)} | ${campaign.maxParallelCalls} lines`;
   elements.startButton.disabled = ['running', 'connected'].includes(campaign.status) || summary.ready === 0;
   elements.stopButton.disabled = !['running', 'connected', 'paused'].includes(campaign.status);
   elements.deleteCampaignButton.disabled = false;

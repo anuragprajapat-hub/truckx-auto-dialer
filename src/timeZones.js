@@ -21,14 +21,14 @@ const IANA_LABEL_MAP = {
 
 export function normalizeTimeZone(value) {
   const raw = String(value || '').trim();
-  if (!raw) return 'America/New_York';
+  if (!raw) return '';
   const upper = raw.toUpperCase();
   return TIME_ZONE_MAP[upper] || raw;
 }
 
 export function displayTimeZone(value) {
   const raw = String(value || '').trim();
-  if (!raw) return 'EST';
+  if (!raw) return 'Unassigned';
   const upper = raw.toUpperCase();
   if (TIME_ZONE_MAP[upper]) return upper.replace('EDT', 'EST').replace('CDT', 'CST').replace('MDT', 'MST').replace('PDT', 'PST');
   return IANA_LABEL_MAP[raw] || raw;
@@ -46,5 +46,7 @@ export function leadTimeZoneLabel(lead) {
 export function matchesCampaignTimeZone(lead, campaign) {
   const target = campaignTimeZoneTarget(campaign);
   if (target === 'ALL') return true;
-  return leadTimeZoneLabel(lead).toUpperCase() === target;
+  const label = leadTimeZoneLabel(lead).toUpperCase();
+  if (!label || label === 'UNASSIGNED') return true;
+  return label === target;
 }

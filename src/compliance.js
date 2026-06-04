@@ -1,33 +1,5 @@
 import { config } from './config.js';
-import { campaignTimeZoneTarget, leadTimeZoneLabel, matchesCampaignTimeZone } from './timeZones.js';
-
-function parseClock(value) {
-  const [hours, minutes] = value.split(':').map(Number);
-  return hours * 60 + minutes;
-}
-
-function localClockMinutes(timeZone, date = new Date()) {
-  let parts;
-  try {
-    parts = new Intl.DateTimeFormat('en-US', {
-      timeZone,
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false
-    }).formatToParts(date);
-  } catch {
-    parts = new Intl.DateTimeFormat('en-US', {
-      timeZone: 'America/New_York',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false
-    }).formatToParts(date);
-  }
-
-  const hour = Number(parts.find((part) => part.type === 'hour')?.value || 0);
-  const minute = Number(parts.find((part) => part.type === 'minute')?.value || 0);
-  return hour * 60 + minute;
-}
+import { campaignTimeZoneTarget, matchesCampaignTimeZone } from './timeZones.js';
 
 export function normalizeUsPhone(phone) {
   const digits = String(phone || '').replace(/\D/g, '');
@@ -59,30 +31,12 @@ export function evaluateLeadForDial(lead, campaign, context = {}) {
     return { allowed: false, reason: `Provider error: ${lead.lastProviderError || 'Call provider rejected the request'}` };
   }
 
-  if (!lead.consent) {
-    return { allowed: false, reason: 'Missing consent flag' };
-  }
-
-  if (!isCallableStatus(lead.status)) {
-    return { allowed: false, reason: `Lead status is not callable: ${lead.status || 'blank'}` };
-  }
-
   if (!matchesCampaignTimeZone(lead, campaign)) {
     return { allowed: false, reason: `Not in ${campaignTimeZoneTarget(campaign)} campaign` };
   }
 
   if ((lead.attempts || 0) >= config.compliance.maxAttemptsPerLead) {
     return { allowed: false, reason: 'Max attempt limit reached' };
-  }
-
-  const timeZone = lead.timeZone || 'America/New_York';
-  const timeZoneLabel = leadTimeZoneLabel(lead);
-  const start = parseClock(campaign.callWindowStart || config.compliance.defaultCallWindowStart);
-  const end = parseClock(campaign.callWindowEnd || config.compliance.defaultCallWindowEnd);
-  const now = localClockMinutes(timeZone);
-
-  if (now < start || now >= end) {
-    return { allowed: false, reason: `Outside local call window in ${timeZoneLabel}` };
   }
 
   return { allowed: true, phone, reason: 'Allowed' };

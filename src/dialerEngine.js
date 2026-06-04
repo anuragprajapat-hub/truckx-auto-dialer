@@ -1,5 +1,5 @@
 import { config } from './config.js';
-import { evaluateLeadForDial, isCallableStatus } from './compliance.js';
+import { evaluateLeadForDial } from './compliance.js';
 import { addCall, addEvent, getStore, setCampaignStatus, updateCall, updateLead, upsertLeads, upsertOwners } from './store.js';
 import { createHubSpotCallLog, fetchContactsForOwner, fetchHubSpotOwners, updateHubSpotLead } from './hubspot.js';
 import { matchesCampaignTimeZone } from './timeZones.js';
@@ -121,15 +121,14 @@ export class DialerEngine {
       const activeLeadIds = new Set(activeCalls.map((call) => call.leadId));
       const leads = fresh.leads
         .filter((lead) => lead.ownerId === campaign.ownerId)
-        .filter((lead) => isCallableStatus(lead.status))
         .filter((lead) => matchesCampaignTimeZone(lead, campaign))
         .filter((lead) => !activeLeadIds.has(lead.id))
         .filter((lead) => evaluateLeadForDial(lead, campaign, { dncNumbers }).allowed)
         .slice(0, openSlots);
 
       if (!leads.length && activeCalls.length === 0) {
-        const anyReady = fresh.leads.some((lead) => lead.ownerId === campaign.ownerId && isCallableStatus(lead.status) && matchesCampaignTimeZone(lead, campaign));
-        if (!anyReady) {
+        const anyCandidate = fresh.leads.some((lead) => lead.ownerId === campaign.ownerId && matchesCampaignTimeZone(lead, campaign));
+        if (!anyCandidate) {
           setCampaignStatus(campaign.id, 'complete');
           addEvent('campaign_complete', `Campaign ${campaign.name} completed`, { campaignId: campaign.id });
         }

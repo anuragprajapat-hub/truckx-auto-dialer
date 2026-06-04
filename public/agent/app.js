@@ -236,9 +236,7 @@ function nextQueueAction(summary) {
   const reason = String(summary.topReason || '').toLowerCase();
   if (reason.includes('provider error')) return 'Ask admin to check carrier approval or Plivo logs.';
   if (reason.includes('consent')) return 'Ask admin to update consent in HubSpot.';
-  if (reason.includes('call window')) return 'Wait for local calling hours or ask admin to adjust the window.';
   if (reason.includes('attempt')) return 'Ask admin to reset the test lead or update the attempt limit.';
-  if (reason.includes('status is not callable')) return 'Ask admin to update the lead status rule.';
   return 'Ask admin to review the PowerList.';
 }
 
@@ -316,7 +314,7 @@ function renderCampaigns() {
     .map((campaign) => `<option value="${escapeHtml(campaign.id)}">${escapeHtml(campaign.name)}</option>`)
     .join('');
   elements.campaignSelect.value = selectedCampaignId;
-  elements.campaignMeta.textContent = `${campaignTarget(current)} | ${current.maxParallelCalls} lines | ${current.callWindowStart}-${current.callWindowEnd} local`;
+  elements.campaignMeta.textContent = `${campaignTarget(current)} | ${current.maxParallelCalls} lines`;
   elements.campaignStatus.outerHTML = statusPill(current.status || 'draft');
   elements.campaignStatus = document.querySelector('.panel-heading .pill');
   elements.startButton.disabled = ['running', 'connected'].includes(current.status);

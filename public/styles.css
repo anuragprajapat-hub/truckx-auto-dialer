@@ -265,7 +265,7 @@ h3 {
   align-items: end;
   display: grid;
   gap: 12px;
-  grid-template-columns: minmax(160px, 1fr) minmax(170px, 1.2fr) 110px 92px minmax(160px, 1fr) 110px 110px auto;
+  grid-template-columns: minmax(170px, 1fr) minmax(190px, 1.2fr) 120px 92px minmax(180px, 1fr) auto;
 }
 
 .powerlist-form label,
