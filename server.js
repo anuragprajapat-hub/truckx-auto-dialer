@@ -731,7 +731,6 @@ async function handleWebhooks(request, response, url) {
     sendXml(response, [
       '<?xml version="1.0" encoding="UTF-8"?>',
       '<Response>',
-      '<Say voice="alice">Please hold while we connect your call.</Say>',
       `<Dial callerId="${escapeXml(details.callerIdNumber)}"><Number>${escapeXml(details.agentPhone)}</Number></Dial>`,
       '</Response>'
     ].join(''));
@@ -743,7 +742,6 @@ async function handleWebhooks(request, response, url) {
     sendXml(response, [
       '<?xml version="1.0" encoding="UTF-8"?>',
       '<Response>',
-      '<Speak>Please hold while we connect your call.</Speak>',
       `<Dial callerId="${escapeXml(plivoNumber(details.callerIdNumber))}"><Number>${escapeXml(plivoNumber(details.agentPhone))}</Number></Dial>`,
       '</Response>'
     ].join(''));
