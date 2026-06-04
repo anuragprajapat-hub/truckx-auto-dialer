@@ -27,7 +27,8 @@ header {
 }
 
 header img {
-  width: 138px;
+  height: 42px;
+  width: 42px;
 }
 
 header span,
