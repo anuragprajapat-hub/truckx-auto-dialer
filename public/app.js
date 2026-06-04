@@ -309,7 +309,8 @@ function renderStats() {
   const reports = state.reports?.agents || [];
   const dialerSeconds = reports.reduce((sum, report) => sum + Number(report.dialerSeconds || 0), 0);
 
-  elements.systemLine.textContent = `Provider: ${state.settings.voiceProvider} | Lead source: ${state.settings.leadSource} | Caller IDs: ${state.settings.callerIdNumbers.length}`;
+  const providerAccount = state.settings.providerAccount ? ` (${state.settings.providerAccount})` : '';
+  elements.systemLine.textContent = `Provider: ${state.settings.voiceProvider}${providerAccount} | Lead source: ${state.settings.leadSource} | Caller IDs: ${state.settings.callerIdNumbers.length}`;
   elements.statCampaigns.textContent = activeCampaigns().length;
   elements.statDials.textContent = state.calls.length;
   elements.statActive.textContent = activeCalls.length;

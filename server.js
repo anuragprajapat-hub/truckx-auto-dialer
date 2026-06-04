@@ -148,7 +148,9 @@ function setupStatus() {
         label: 'Voice provider',
         ok: carrierReady,
         value: config.voiceProvider,
-        message: carrierReady ? 'Ready' : 'Missing carrier credentials'
+        message: carrierReady
+          ? `${config.voiceProvider === 'plivo' ? `Plivo Auth ID ${maskedValue(config.plivo.authId)}` : 'Ready'}`
+          : 'Missing carrier credentials'
       },
       {
         id: 'hubspot',
@@ -278,6 +280,13 @@ function safeAgents(agents = []) {
   return agents.map(({ apiToken, ...agent }) => agent);
 }
 
+function maskedValue(value) {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  if (text.length <= 8) return 'configured';
+  return `${text.slice(0, 6)}...${text.slice(-4)}`;
+}
+
 function bridgeDetails(url) {
   const campaignId = url.searchParams.get('campaignId') || '';
   const leadId = url.searchParams.get('leadId') || '';
@@ -358,6 +367,7 @@ async function handleApi(request, response, url) {
       ok: true,
       appName: 'TruckX Auto Dialer',
       provider: config.voiceProvider,
+      providerAccount: config.voiceProvider === 'plivo' ? maskedValue(config.plivo.authId) : '',
       leadSource: config.leadSource,
       storage: storeBackend(),
       time: new Date().toISOString()
@@ -383,6 +393,7 @@ async function handleApi(request, response, url) {
       },
       settings: {
         voiceProvider: config.voiceProvider,
+        providerAccount: config.voiceProvider === 'plivo' ? maskedValue(config.plivo.authId) : '',
         leadSource: config.leadSource,
         callerIdNumber: config.callerIdNumber,
         callerIdNumbers: config.callerIdNumbers,
