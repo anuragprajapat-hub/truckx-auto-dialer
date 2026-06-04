@@ -1,6 +1,16 @@
 import { config } from './config.js';
 import { evaluateLeadForDial } from './compliance.js';
-import { addCall, addEvent, getStore, setCampaignStatus, updateCall, updateLead, upsertLeads, upsertOwners } from './store.js';
+import {
+  addCall,
+  addEvent,
+  getStore,
+  resetProviderErrorsForCampaign,
+  setCampaignStatus,
+  updateCall,
+  updateLead,
+  upsertLeads,
+  upsertOwners
+} from './store.js';
 import { createHubSpotCallLog, fetchContactsForOwner, fetchHubSpotOwners, updateHubSpotLead } from './hubspot.js';
 import { matchesCampaignTimeZone } from './timeZones.js';
 import { createVoiceProvider } from './voice/index.js';
@@ -68,8 +78,9 @@ export class DialerEngine {
 
     const leads = await fetchContactsForOwner(owner);
     const count = upsertLeads(leads);
-    addEvent('hubspot_sync', `Synced ${count} HubSpot contacts`, { campaignId });
-    return { count };
+    const reset = resetProviderErrorsForCampaign(campaignId);
+    addEvent('hubspot_sync', `Synced ${count} HubSpot contacts`, { campaignId, providerErrorsReset: reset.reset });
+    return { count, providerErrorsReset: reset.reset };
   }
 
   async syncHubSpotOwners() {

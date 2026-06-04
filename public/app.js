@@ -820,11 +820,15 @@ elements.syncHubSpotButton.addEventListener('click', async () => {
   try {
     const result = await api(`/api/campaigns/${campaign.id}/sync-hubspot`, { method: 'POST' });
     const count = result.count || 0;
+    const resetCount = result.providerErrorsReset || 0;
     setNotice(
-      count
-        ? `Synced ${count} HubSpot contact(s) for this owner.`
-        : 'Synced HubSpot, but found 0 contacts for this owner. Check that contacts have this HubSpot owner.',
-      count ? 'success' : 'info'
+      [
+        count
+          ? `Synced ${count} HubSpot contact(s) for this owner.`
+          : 'Synced HubSpot, but found 0 contacts for this owner. Check that contacts have this HubSpot owner.',
+        resetCount ? `Cleared ${resetCount} old provider error lead(s).` : ''
+      ].filter(Boolean).join(' '),
+      count || resetCount ? 'success' : 'info'
     );
     await loadState();
   } catch (error) {
