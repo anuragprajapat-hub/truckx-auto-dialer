@@ -300,6 +300,15 @@ function maskedValue(value) {
   return `${text.slice(0, 6)}...${text.slice(-4)}`;
 }
 
+function bodyValue(body = {}, names = []) {
+  const lookup = new Map(Object.entries(body).map(([key, value]) => [String(key).toLowerCase(), value]));
+  for (const name of names) {
+    const value = lookup.get(String(name).toLowerCase());
+    if (value !== undefined && value !== null && String(value).trim()) return String(value).trim();
+  }
+  return '';
+}
+
 function bridgeDetails(url) {
   const campaignId = url.searchParams.get('campaignId') || '';
   const leadId = url.searchParams.get('leadId') || '';
@@ -337,6 +346,21 @@ function conferenceXml(conferenceName, attrs = {}) {
 function runningBrowserSessionForAgent(body = {}) {
   const endpointUsername = String(body.From || body.CallerName || '').replace(/^sip:/, '').split('@')[0].trim().toLowerCase();
   const data = getStore();
+  const requestedCampaignId = bodyValue(body, ['X-PH-CampaignId', 'X-PH-CampaignID', 'X_PH_CampaignId', 'XPHCampaignId']);
+  const requestedSessionId = bodyValue(body, ['X-PH-SessionId', 'X-PH-SessionID', 'X_PH_SessionId', 'XPHSessionId']);
+
+  if (requestedCampaignId) {
+    const campaign = (data.campaigns || []).find((item) => item.id === requestedCampaignId && item.status === 'running' && item.currentSessionId);
+    const session = campaign
+      ? (data.sessions || []).find((item) => (
+          item.id === (requestedSessionId || campaign.currentSessionId)
+          && item.id === campaign.currentSessionId
+          && !item.endedAt
+        ))
+      : null;
+    if (campaign && session) return { campaign, session };
+  }
+
   const agents = data.agents || [];
   const matchedAgent = agents.find((agent) => {
     const configured = String(agent.plivoEndpointUsername || agent.softphoneUsername || '').toLowerCase();
@@ -351,7 +375,7 @@ function runningBrowserSessionForAgent(body = {}) {
     if (campaign.status !== 'running' || !campaign.currentSessionId) return false;
     if (ownerIds && !ownerIds.has(campaign.ownerId)) return false;
     const session = data.sessions.find((item) => item.id === campaign.currentSessionId);
-    return session && !session.agentConnectedAt;
+    return session && !session.endedAt && (!session.agentConnectedAt || Boolean(matchedAgent));
   });
 
   if (!runningCampaign) return { campaign: null, session: null };
@@ -424,6 +448,9 @@ async function handleApi(request, response, url) {
       appName: 'TruckX Auto Dialer',
       provider: config.voiceProvider,
       providerAccount: config.voiceProvider === 'plivo' ? maskedValue(config.plivo.authId) : '',
+      agentConnectionMode: config.agentConnectionMode,
+      browserSoftphoneConfigured: Boolean(config.plivo.browserUsername && config.plivo.browserPassword),
+      browserUsername: maskedValue(config.plivo.browserUsername),
       leadSource: config.leadSource,
       storage: storeBackend(),
       time: new Date().toISOString()

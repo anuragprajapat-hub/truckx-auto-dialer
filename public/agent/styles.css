@@ -258,6 +258,41 @@ label {
   padding: 12px;
 }
 
+.audio-status {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 4px;
+  margin-bottom: 14px;
+  padding: 11px 12px;
+}
+
+.audio-status strong {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.audio-status span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.audio-status.success {
+  background: var(--blue-soft);
+  border-color: #a8dced;
+}
+
+.audio-status.pending,
+.audio-status.warning {
+  background: var(--amber-soft);
+  border-color: #f4d49b;
+}
+
+.audio-status.error {
+  background: var(--rose-soft);
+  border-color: #efb5bf;
+}
+
 .disposition-panel form {
   display: grid;
   gap: 8px;

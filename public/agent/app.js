@@ -12,6 +12,11 @@ let softphoneCallActive = false;
 let softphoneLoginWaiter = null;
 let softphoneMode = 'phone';
 let softphoneConfigCache = null;
+let softphoneStatus = {
+  kind: 'idle',
+  title: 'Browser audio not connected',
+  message: 'Click Start Audio and allow microphone access. Plivo shows Registered only while this page is connected.'
+};
 
 const elements = {
   setupView: document.querySelector('#setupView'),
@@ -33,6 +38,7 @@ const elements = {
   campaignStatus: document.querySelector('#campaignStatus'),
   startButton: document.querySelector('#startButton'),
   stopButton: document.querySelector('#stopButton'),
+  audioStatus: document.querySelector('#audioStatus'),
   dispositionPanel: document.querySelector('#dispositionPanel'),
   dispositionLead: document.querySelector('#dispositionLead'),
   dispositionForm: document.querySelector('#dispositionForm'),
@@ -177,6 +183,11 @@ function setNotice(message, type = 'info') {
   elements.notice.className = `notice ${type}`;
 }
 
+function setSoftphoneStatus(title, message, kind = 'idle') {
+  softphoneStatus = { title, message, kind };
+  renderSoftphoneStatus();
+}
+
 async function softphoneConfig(options = {}) {
   if (softphoneConfigCache && !options.refresh) return softphoneConfigCache;
   const config = await api('/api/agent/softphone-config');
@@ -213,33 +224,53 @@ function initSoftphoneClient() {
   softphoneClient.setRingToneBack?.(false);
   softphoneClient.setConnectTone?.(false);
 
+  softphoneClient.on('onWebrtcNotSupported', () => {
+    setSoftphoneStatus('Browser audio is not supported', 'Use the latest Chrome or Firefox desktop browser for the TruckX dialer.', 'error');
+  });
+  softphoneClient.on('onWebSocketConnected', () => {
+    setSoftphoneStatus('Browser phone connected to Plivo', 'Registering the TruckX browser endpoint now.', 'pending');
+  });
   softphoneClient.on('onLogin', () => {
     softphoneLoggedIn = true;
+    setSoftphoneStatus('Plivo endpoint registered', 'Now joining the TruckX audio bridge. Keep this page open.', 'pending');
     settleSoftphoneLogin();
   });
-  softphoneClient.on('onLoginFailed', () => {
+  softphoneClient.on('onLoginFailed', (cause) => {
     softphoneLoggedIn = false;
-    settleSoftphoneLogin(new Error('Browser phone login failed. Check the Plivo browser endpoint credentials.'));
+    const detail = cause ? ` Plivo message: ${cause}` : '';
+    setSoftphoneStatus('Browser phone login failed', `Check PLIVO_BROWSER_USERNAME and PLIVO_BROWSER_PASSWORD in Render.${detail}`, 'error');
+    settleSoftphoneLogin(new Error(`Browser phone login failed. Check the Plivo browser endpoint credentials.${detail}`));
   });
   softphoneClient.on('onMediaPermission', (permission) => {
-    if (permission === false) setNotice('Microphone permission is required for browser dialing.', 'error');
+    if (permission === false) {
+      setNotice('Microphone permission is required for browser dialing.', 'error');
+      setSoftphoneStatus('Microphone permission blocked', 'Allow microphone access in Chrome, then press Start Audio again.', 'error');
+    }
+  });
+  softphoneClient.on('onCalling', () => {
+    setSoftphoneStatus('Joining browser audio', 'Chrome is connecting the agent audio bridge.', 'pending');
   });
   softphoneClient.on('onCallConnected', () => {
     softphoneCallActive = true;
+    setSoftphoneStatus('Browser audio connected', 'Stay on this page. TruckX will dial customers and connect answered calls here.', 'success');
     setNotice('Browser audio connected. Stay on this page while TruckX dials customers.', 'success');
     window.setTimeout(loadState, 800);
   });
   softphoneClient.on('onMediaConnected', () => {
     softphoneCallActive = true;
+    setSoftphoneStatus('Browser audio connected', 'Stay on this page. TruckX will dial customers and connect answered calls here.', 'success');
     setNotice('Browser audio connected. Stay on this page while TruckX dials customers.', 'success');
     window.setTimeout(loadState, 800);
   });
-  softphoneClient.on('onCallFailed', () => {
+  softphoneClient.on('onCallFailed', (cause) => {
     softphoneCallActive = false;
-    setNotice('Browser audio could not connect. Check microphone permission and Plivo endpoint setup.', 'error');
+    const detail = cause ? ` Plivo message: ${cause}` : '';
+    setSoftphoneStatus('Browser audio could not connect', `Check microphone permission, endpoint application, and Plivo logs.${detail}`, 'error');
+    setNotice(`Browser audio could not connect. Check microphone permission and Plivo endpoint setup.${detail}`, 'error');
   });
   softphoneClient.on('onCallTerminated', () => {
     softphoneCallActive = false;
+    setSoftphoneStatus('Browser audio disconnected', 'Press Start Audio again before dialing more customers.', 'error');
     setNotice('Browser audio disconnected.', 'error');
     window.setTimeout(loadState, 800);
   });
@@ -251,6 +282,7 @@ async function loginSoftphone(config) {
   const client = initSoftphoneClient();
   if (softphoneLoggedIn || client.isLoggedIn) return;
 
+  setSoftphoneStatus('Registering Plivo endpoint', 'Chrome may ask for microphone permission. Plivo will show Registered after login succeeds.', 'pending');
   await new Promise((resolve, reject) => {
     softphoneLoginWaiter = { resolve, reject };
     client.login(config.username, config.password);
@@ -271,10 +303,13 @@ async function connectBrowserSoftphone(campaign) {
   if (softphoneCallActive) return true;
 
   setNotice('Connecting browser audio. Allow microphone access when Chrome asks.', 'success');
-  initSoftphoneClient().call(config.dialTarget, {
+  const started = initSoftphoneClient().call(config.dialTarget, {
     'X-PH-CampaignId': campaign.id,
     'X-PH-SessionId': campaign.currentSessionId || ''
   });
+  if (started === false) {
+    throw new Error('Browser audio call could not start. Check the Plivo endpoint application and dial target.');
+  }
   return true;
 }
 
@@ -321,6 +356,56 @@ function needsBrowserAudio(campaign) {
     && campaign?.status === 'running'
     && Boolean(campaign.currentSessionId)
     && (!session || !session.agentConnectedAt);
+}
+
+function canConnectBrowserAudio(campaign) {
+  return softphoneMode === 'browser'
+    && campaign?.status === 'running'
+    && Boolean(campaign.currentSessionId)
+    && !softphoneCallActive;
+}
+
+function renderSoftphoneStatus(campaign = selectedCampaign()) {
+  if (!elements.audioStatus) return;
+
+  const config = softphoneConfigCache;
+  if (!config) {
+    elements.audioStatus.hidden = true;
+    return;
+  }
+
+  let kind = softphoneStatus.kind || 'idle';
+  let title = softphoneStatus.title;
+  let message = softphoneStatus.message;
+
+  if (config.mode !== 'browser') {
+    kind = 'warning';
+    title = 'Agent phone mode is active';
+    message = 'Render is not in browser audio mode. Set AGENT_CONNECTION_MODE=browser if you do not want the agent phone to ring.';
+  } else if (!config.enabled) {
+    kind = 'error';
+    title = 'Browser audio is not configured';
+    message = 'Add PLIVO_BROWSER_USERNAME and PLIVO_BROWSER_PASSWORD in Render, then redeploy.';
+  } else if (softphoneCallActive) {
+    kind = 'success';
+    title = 'Browser audio connected';
+    message = 'Stay on this page while TruckX dials customers.';
+  } else if (softphoneLoggedIn) {
+    kind = 'pending';
+    title = 'Plivo endpoint registered';
+    message = 'Press Connect Audio if the audio bridge has not joined yet.';
+  } else if (campaign?.status === 'running' && campaign.currentSessionId) {
+    kind = kind === 'error' ? kind : 'pending';
+    title = title || 'Connect browser audio';
+    message = message || 'Click Connect Audio and allow microphone access. Customer dialing starts after audio connects.';
+  }
+
+  elements.audioStatus.hidden = false;
+  elements.audioStatus.className = `audio-status ${kind}`;
+  elements.audioStatus.innerHTML = `
+    <strong>${escapeHtml(title)}</strong>
+    <span>${escapeHtml(message)}</span>
+  `;
 }
 
 function pendingDispositionCall() {
@@ -467,9 +552,13 @@ function renderCampaigns() {
   elements.campaignStatus.outerHTML = statusPill(current.status || 'draft');
   elements.campaignStatus = document.querySelector('.panel-heading .pill');
   const connectAudio = needsBrowserAudio(current);
-  elements.startButton.textContent = connectAudio ? 'Connect Audio' : 'Start';
-  elements.startButton.disabled = connectAudio ? false : ['running', 'connected'].includes(current.status);
+  const canReconnectAudio = canConnectBrowserAudio(current);
+  elements.startButton.textContent = connectAudio || canReconnectAudio
+    ? 'Connect Audio'
+    : softphoneMode === 'browser' ? 'Start Audio' : 'Start';
+  elements.startButton.disabled = connectAudio || canReconnectAudio ? false : ['running', 'connected'].includes(current.status);
   elements.stopButton.disabled = !['running', 'connected', 'paused'].includes(current.status);
+  renderSoftphoneStatus(current);
 }
 
 function renderLeads() {
@@ -592,10 +681,12 @@ elements.startButton.addEventListener('click', async () => {
   let startedCampaign = null;
   try {
     const wasWaitingForBrowserAudio = needsBrowserAudio(campaign);
+    const wasRunningWithoutLocalAudio = canConnectBrowserAudio(campaign);
     const campaignToConnect = wasWaitingForBrowserAudio
+      || wasRunningWithoutLocalAudio
       ? campaign
       : await api(`/api/campaigns/${campaign.id}/start`, { method: 'POST' });
-    startedCampaign = wasWaitingForBrowserAudio ? null : campaignToConnect;
+    startedCampaign = wasWaitingForBrowserAudio || wasRunningWithoutLocalAudio ? null : campaignToConnect;
     const browserConnecting = await connectBrowserSoftphone(campaignToConnect);
     if (!browserConnecting) {
       setNotice('Dialer started.', 'success');
