@@ -1,11 +1,14 @@
 :root {
-  --bg: #f5f8fb;
+  --bg: #f3f7fa;
   --panel: #ffffff;
-  --text: #121821;
+  --text: #122033;
   --muted: #607083;
   --line: #d8e2ea;
+  --line-strong: #bed1dd;
   --teal: #0879bd;
+  --teal-dark: #075e90;
   --teal-soft: #e5f7fc;
+  --cyan-soft: #e8fbff;
   --amber: #9a6500;
   --amber-soft: #fff2d8;
   --rose: #b5384a;
@@ -69,6 +72,7 @@ body {
 .sidebar {
   background: #ffffff;
   border-right: 1px solid var(--line);
+  box-shadow: 10px 0 28px rgba(8, 27, 45, 0.04);
   display: grid;
   grid-template-rows: auto 1fr;
   min-height: 100vh;
@@ -98,12 +102,13 @@ body {
   color: var(--ink);
   display: flex;
   justify-content: flex-start;
+  min-height: 44px;
   padding: 12px 24px;
   text-align: left;
 }
 
 .nav-item.active {
-  background: #e8f6fb;
+  background: var(--cyan-soft);
   color: #0879bd;
   font-weight: 700;
 }
@@ -123,12 +128,13 @@ button {
   background: #ffffff;
   color: var(--ink);
   border-radius: 7px;
+  min-height: 40px;
   padding: 9px 12px;
   cursor: pointer;
 }
 
 button:hover {
-  border-color: #aec4d3;
+  border-color: var(--line-strong);
 }
 
 button:disabled {
@@ -144,6 +150,7 @@ button:disabled {
   padding: 22px 28px 16px;
   border-bottom: 1px solid var(--line);
   background: #ffffff;
+  box-shadow: 0 10px 30px rgba(8, 27, 45, 0.04);
 }
 
 .top-tabs {
@@ -159,7 +166,7 @@ button:disabled {
 }
 
 .tab-button.active {
-  background: #e8f6fb;
+  background: var(--cyan-soft);
   color: #0879bd;
 }
 
@@ -202,7 +209,9 @@ h3 {
   border: 1px solid var(--line);
   background: #ffffff;
   border-radius: 8px;
-  padding: 10px 12px;
+  box-shadow: var(--shadow);
+  min-height: 70px;
+  padding: 11px 13px;
 }
 
 .status-strip span {
@@ -365,6 +374,11 @@ select {
   font-weight: 700;
 }
 
+.primary-button:hover {
+  background: var(--teal-dark);
+  border-color: var(--teal-dark);
+}
+
 .success-button {
   background: var(--teal-soft);
   color: var(--teal);
@@ -398,11 +412,13 @@ select {
   border-radius: 8px;
   display: grid;
   gap: 5px;
+  min-height: 62px;
 }
 
 .campaign-item.active {
   border-color: var(--teal);
-  background: var(--teal-soft);
+  background: var(--cyan-soft);
+  box-shadow: inset 4px 0 0 var(--teal);
 }
 
 .campaign-item strong {

@@ -58,66 +58,96 @@
       <section id="notice" class="notice" hidden></section>
 
       <section class="workspace">
-        <section class="panel dialer-panel">
-          <div class="panel-heading">
-            <div>
-              <h1>Dialer</h1>
-              <p id="campaignMeta">No PowerList selected</p>
+        <section class="main-stack">
+          <section id="currentCallPanel" class="panel live-call-panel">
+            <div class="live-call-state">
+              <span id="currentCallDot" class="call-dot idle"></span>
+              <span id="currentCallState">Ready</span>
             </div>
-            <span id="campaignStatus" class="pill">idle</span>
-          </div>
-
-          <div class="control-grid">
-            <label>
-              PowerList
-              <select id="campaignSelect"></select>
-            </label>
-            <button id="startButton" class="success-button" type="button">Start</button>
-            <button id="stopButton" class="danger-button" type="button">Stop</button>
-          </div>
-
-          <section id="audioStatus" class="audio-status" hidden aria-live="polite"></section>
-
-          <section id="dispositionPanel" class="disposition-panel" hidden>
-            <div class="disposition-card">
+            <div class="live-call-grid">
               <div>
-                <h2>After-call status</h2>
-                <p id="dispositionLead"></p>
+                <h1 id="currentCallName">No active customer</h1>
+                <p id="currentCallMeta">Select a PowerList and connect audio to begin.</p>
               </div>
-              <form id="dispositionForm">
-                <select id="dispositionStatus" required>
-                  <option value="">Select status</option>
-                  <option value="follow_up">Follow up</option>
-                  <option value="qualified">Qualified</option>
-                  <option value="not_interested">Not interested</option>
-                  <option value="bad_timing">Bad timing</option>
-                  <option value="do_not_call">Do not call</option>
-                  <option value="connected">Connected</option>
-                  <option value="new">New</option>
-                </select>
-                <input id="dispositionNote" placeholder="Note">
-                <button type="submit">Save</button>
-              </form>
+              <div class="live-call-details">
+                <span id="currentCallPhone">-</span>
+                <span id="currentCallCompany">-</span>
+                <span id="currentCallAttempt">-</span>
+              </div>
             </div>
           </section>
 
-          <section id="queueHealth" class="queue-health" aria-live="polite"></section>
+          <section class="panel dialer-panel">
+            <div class="panel-heading">
+              <div>
+                <h1>Dialer</h1>
+                <p id="campaignMeta">No PowerList selected</p>
+              </div>
+              <span id="campaignStatus" class="pill">idle</span>
+            </div>
 
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Lead</th>
-                  <th>Phone</th>
-                  <th>Zone</th>
-                  <th>Status</th>
-                  <th>Attempts</th>
-                  <th>Dial Check</th>
-                </tr>
-              </thead>
-              <tbody id="leadRows"></tbody>
-            </table>
-          </div>
+            <div class="control-grid">
+              <label>
+                PowerList
+                <select id="campaignSelect"></select>
+              </label>
+              <button id="startButton" class="success-button" type="button">Start</button>
+              <button id="stopButton" class="danger-button" type="button">Stop</button>
+            </div>
+
+            <section id="audioStatus" class="audio-status" hidden aria-live="polite"></section>
+
+            <section id="dispositionPanel" class="disposition-panel" hidden>
+              <div class="disposition-card">
+                <div class="disposition-heading">
+                  <div>
+                    <span class="eyebrow">Call complete</span>
+                    <h2>Update lead outcome</h2>
+                    <p id="dispositionLead"></p>
+                  </div>
+                  <span class="pill connected">HubSpot sync</span>
+                </div>
+                <form id="dispositionForm">
+                  <label>
+                    Outcome
+                    <select id="dispositionStatus" required>
+                      <option value="">Select status</option>
+                      <option value="follow_up">Follow up</option>
+                      <option value="qualified">Qualified</option>
+                      <option value="not_interested">Not interested</option>
+                      <option value="bad_timing">Bad timing</option>
+                      <option value="do_not_call">Do not call</option>
+                      <option value="connected">Connected</option>
+                      <option value="new">New</option>
+                    </select>
+                  </label>
+                  <label>
+                    Note
+                    <input id="dispositionNote" placeholder="Add call note">
+                  </label>
+                  <button type="submit">Save outcome</button>
+                </form>
+              </div>
+            </section>
+
+            <section id="queueHealth" class="queue-health" aria-live="polite"></section>
+
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Lead</th>
+                    <th>Phone</th>
+                    <th>Zone</th>
+                    <th>Status</th>
+                    <th>Attempts</th>
+                    <th>Dial Check</th>
+                  </tr>
+                </thead>
+                <tbody id="leadRows"></tbody>
+              </table>
+            </div>
+          </section>
         </section>
 
         <aside class="side-stack">

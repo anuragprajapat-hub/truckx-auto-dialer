@@ -34,6 +34,14 @@ const elements = {
   statActive: document.querySelector('#statActive'),
   statTime: document.querySelector('#statTime'),
   notice: document.querySelector('#notice'),
+  currentCallPanel: document.querySelector('#currentCallPanel'),
+  currentCallDot: document.querySelector('#currentCallDot'),
+  currentCallState: document.querySelector('#currentCallState'),
+  currentCallName: document.querySelector('#currentCallName'),
+  currentCallMeta: document.querySelector('#currentCallMeta'),
+  currentCallPhone: document.querySelector('#currentCallPhone'),
+  currentCallCompany: document.querySelector('#currentCallCompany'),
+  currentCallAttempt: document.querySelector('#currentCallAttempt'),
   campaignSelect: document.querySelector('#campaignSelect'),
   campaignMeta: document.querySelector('#campaignMeta'),
   campaignStatus: document.querySelector('#campaignStatus'),
@@ -329,6 +337,10 @@ function statusPill(value, extraClass = '') {
   return `<span class="pill ${escapeHtml(clean)} ${extraClass}">${escapeHtml(clean.replaceAll('_', ' '))}</span>`;
 }
 
+function activeStatuses() {
+  return ['dialing', 'queued', 'ringing', 'in_progress'];
+}
+
 function formatDuration(seconds) {
   const total = Number(seconds || 0);
   const hours = Math.floor(total / 3600);
@@ -350,6 +362,104 @@ function campaignTarget(campaign) {
 function currentSession(campaign) {
   if (!campaign?.currentSessionId) return null;
   return (state.sessions || []).find((session) => session.id === campaign.currentSessionId) || null;
+}
+
+function leadForCall(call) {
+  return (snapshot?.leads || state?.leads || []).find((lead) => lead.id === call?.leadId) || null;
+}
+
+function callsForSelectedCampaign() {
+  const campaign = selectedCampaign();
+  return (state?.calls || []).filter((call) => !campaign || call.campaignId === campaign.id);
+}
+
+function callStartedLabel(call) {
+  if (!call?.startedAt) return '';
+  return new Date(call.startedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+
+function updateCurrentCallPanel({ stateLabel, stateClass, name, meta, phone, company, attempt }) {
+  elements.currentCallPanel.className = `panel live-call-panel ${stateClass || 'idle'}`;
+  elements.currentCallDot.className = `call-dot ${stateClass || 'idle'}`;
+  elements.currentCallState.textContent = stateLabel || 'Ready';
+  elements.currentCallName.textContent = name || 'No active customer';
+  elements.currentCallMeta.textContent = meta || 'Select a PowerList and connect audio to begin.';
+  elements.currentCallPhone.textContent = phone || '-';
+  elements.currentCallCompany.textContent = company || '-';
+  elements.currentCallAttempt.textContent = attempt || '-';
+}
+
+function renderCurrentCall() {
+  const campaign = selectedCampaign();
+  const calls = callsForSelectedCampaign();
+  const dispositionCall = pendingDispositionCall();
+  const liveCall = calls.find((call) => call.status === 'in_progress');
+  const dialingCalls = calls.filter((call) => activeStatuses().includes(call.status));
+
+  if (dispositionCall) {
+    const lead = leadForCall(dispositionCall);
+    updateCurrentCallPanel({
+      stateLabel: 'Outcome needed',
+      stateClass: 'needs-outcome',
+      name: dispositionCall.leadName,
+      meta: `${dispositionCall.outcome || 'completed'} | ${callStartedLabel(dispositionCall)}`,
+      phone: dispositionCall.leadPhone,
+      company: lead?.company || lead?.email || 'HubSpot contact',
+      attempt: `Attempt ${dispositionCall.attempt || 1}`
+    });
+    return;
+  }
+
+  if (liveCall) {
+    const lead = leadForCall(liveCall);
+    updateCurrentCallPanel({
+      stateLabel: 'Connected',
+      stateClass: 'connected',
+      name: liveCall.leadName,
+      meta: `Live customer | ${callStartedLabel(liveCall)}`,
+      phone: liveCall.leadPhone,
+      company: lead?.company || lead?.email || 'HubSpot contact',
+      attempt: `Attempt ${liveCall.attempt || 1}`
+    });
+    return;
+  }
+
+  if (dialingCalls.length) {
+    const names = dialingCalls.map((call) => call.leadName).slice(0, 3).join(', ');
+    updateCurrentCallPanel({
+      stateLabel: 'Dialing',
+      stateClass: 'dialing',
+      name: `${dialingCalls.length} active line${dialingCalls.length === 1 ? '' : 's'}`,
+      meta: names || 'Waiting for carrier update',
+      phone: dialingCalls[0]?.leadPhone || '-',
+      company: campaign?.name || 'PowerList',
+      attempt: `${campaign?.maxParallelCalls || dialingCalls.length} lines`
+    });
+    return;
+  }
+
+  if (softphoneCallActive) {
+    updateCurrentCallPanel({
+      stateLabel: 'Audio connected',
+      stateClass: 'ready',
+      name: 'Ready for next customer',
+      meta: campaign?.name || 'Select a PowerList',
+      phone: campaignTarget(campaign),
+      company: `${campaign?.maxParallelCalls || 1} line${Number(campaign?.maxParallelCalls || 1) === 1 ? '' : 's'}`,
+      attempt: 'Standby'
+    });
+    return;
+  }
+
+  updateCurrentCallPanel({
+    stateLabel: campaign?.status === 'running' ? 'Connecting audio' : 'Ready',
+    stateClass: campaign?.status === 'running' ? 'dialing' : 'idle',
+    name: campaign ? campaign.name : 'No active customer',
+    meta: campaign ? `${campaignTarget(campaign)} | ${campaign.maxParallelCalls} lines` : 'Select a PowerList and connect audio to begin.',
+    phone: campaignTarget(campaign),
+    company: campaign?.status || '-',
+    attempt: campaign ? `${campaign.maxParallelCalls} lines` : '-'
+  });
 }
 
 function needsBrowserAudio(campaign) {
@@ -565,6 +675,9 @@ function renderCampaigns() {
 
 function renderLeads() {
   const leads = snapshot?.leads || [];
+  const activeLeadIds = new Set(callsForSelectedCampaign()
+    .filter((call) => activeStatuses().includes(call.status) || call.requiresDisposition)
+    .map((call) => call.leadId));
   if (!selectedCampaign()) {
     elements.leadRows.innerHTML = '<tr><td colspan="6">No PowerList selected.</td></tr>';
     return;
@@ -579,7 +692,7 @@ function renderLeads() {
       const check = lead.dialCheck || {};
       const allowed = check.allowed ? statusPill('allowed', 'allowed') : statusPill('blocked', 'blocked');
       return `
-        <tr>
+        <tr class="${activeLeadIds.has(lead.id) ? 'is-active-lead' : ''}">
           <td>
             <div class="lead-cell">
               <strong>${escapeHtml(lead.name)}</strong>
@@ -609,7 +722,8 @@ function renderDisposition() {
   const isNewDisposition = activeDispositionCallId !== call.id;
   activeDispositionCallId = call.id;
   elements.dispositionPanel.hidden = false;
-  elements.dispositionLead.textContent = `${call.leadName} | ${call.leadPhone} | ${call.outcome || 'completed'}`;
+  const lead = leadForCall(call);
+  elements.dispositionLead.textContent = `${call.leadName} | ${call.leadPhone} | ${lead?.company || lead?.email || call.outcome || 'completed'}`;
   elements.dispositionForm.dataset.callId = call.id;
   if (isNewDisposition) elements.dispositionStatus.focus();
 }
@@ -623,7 +737,7 @@ function renderCalls() {
     ? activeCalls.map((call) => `
       <div class="call-card">
         <strong>${escapeHtml(call.leadName)}</strong>
-        <span>${escapeHtml(call.leadPhone)} | attempt ${escapeHtml(call.attempt)}</span>
+        <span>${escapeHtml(call.leadPhone)} | ${escapeHtml(callStartedLabel(call))} | attempt ${escapeHtml(call.attempt)}</span>
         ${statusPill(call.status)}
       </div>
     `).join('')
@@ -655,6 +769,7 @@ function render() {
   renderHeader();
   renderStats();
   renderCampaigns();
+  renderCurrentCall();
   renderQueueHealth();
   renderLeads();
   renderDisposition();
