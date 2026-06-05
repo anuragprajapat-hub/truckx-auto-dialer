@@ -101,6 +101,13 @@ function callOutcomeBody(outcome) {
   return `Call completed with outcome: ${outcome || 'unknown'}.`;
 }
 
+function hubspotLeadStatusValue(status) {
+  const value = String(status || '').trim();
+  if (!value) return '';
+  const normalized = value.toLowerCase();
+  return config.hubspot.leadStatusValues[normalized] || value;
+}
+
 const HUBSPOT_DISPOSITIONS = {
   live_answer: 'f240bbac-87c9-4f6e-bf70-924b57d47db7',
   voicemail: 'b2cf5968-551e-4856-9783-52b3da59a7d0',
@@ -175,7 +182,7 @@ export async function updateHubSpotLead(lead, patch) {
 
   const field = config.hubspot.properties;
   const properties = {};
-  if (patch.status) properties[field.leadStatus] = patch.status;
+  if (patch.status) properties[field.leadStatus] = hubspotLeadStatusValue(patch.status);
   if (patch.lastOutcome) properties[field.lastOutcome] = patch.lastOutcome;
   if (typeof patch.attempts === 'number') properties[field.attempts] = String(patch.attempts);
 

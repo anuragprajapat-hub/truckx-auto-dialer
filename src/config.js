@@ -27,6 +27,26 @@ function listFromEnv(name) {
     .filter(Boolean);
 }
 
+function statusMapFromEnv(name, fallback) {
+  const raw = String(process.env[name] || '').trim();
+  if (!raw) return fallback;
+
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return { ...fallback, ...parsed };
+    }
+  } catch {
+    // Also support compact env strings like follow_up:FOLLOWUP,new:NEW.
+  }
+
+  const pairs = Object.fromEntries(raw
+    .split(',')
+    .map((pair) => pair.split(':').map((part) => part.trim()))
+    .filter(([key, value]) => key && value));
+  return { ...fallback, ...pairs };
+}
+
 function usersFromEnv() {
   return listFromEnv('APP_USERS')
     .map((item) => {
@@ -59,6 +79,25 @@ const fallbackUsers = process.env.APP_PASSWORD
     ]
   : [];
 
+const defaultHubSpotLeadStatusValues = {
+  new: 'NEW',
+  connected: 'CONNECTED',
+  follow_up: 'FOLLOWUP',
+  followup: 'FOLLOWUP',
+  qualified: 'QUALIFIED',
+  not_interested: 'NOT_INTERESTED',
+  bad_timing: 'BAD_TIMING',
+  do_not_call: 'DO_NOT_CALL',
+  voicemail: 'VOICEMAIL',
+  no_answer: 'NO_ANSWER',
+  retry: 'RETRY',
+  exhausted: 'EXHAUSTED',
+  abandoned: 'ABANDONED',
+  failed: 'FAILED'
+};
+
+const plivoMachineDetection = String(process.env.PLIVO_MACHINE_DETECTION || 'hangup').trim().toLowerCase();
+
 export const config = {
   port: numberFromEnv('PORT', 4242),
   publicBaseUrl: process.env.PUBLIC_BASE_URL || process.env.RENDER_EXTERNAL_URL || 'http://localhost:4242',
@@ -88,7 +127,8 @@ export const config = {
       lastOutcome: process.env.HUBSPOT_PROP_LAST_OUTCOME || 'last_call_outcome',
       timeZone: process.env.HUBSPOT_PROP_TIME_ZONE || 'time_zone',
       leadStatus: process.env.HUBSPOT_PROP_LEAD_STATUS || 'hs_lead_status'
-    }
+    },
+    leadStatusValues: statusMapFromEnv('HUBSPOT_LEAD_STATUS_VALUES', defaultHubSpotLeadStatusValues)
   },
   twilio: {
     accountSid: process.env.TWILIO_ACCOUNT_SID || '',
@@ -99,7 +139,10 @@ export const config = {
     authToken: process.env.PLIVO_AUTH_TOKEN || '',
     browserUsername: process.env.PLIVO_BROWSER_USERNAME || '',
     browserPassword: process.env.PLIVO_BROWSER_PASSWORD || '',
-    browserDialTarget: process.env.PLIVO_BROWSER_DIAL_TARGET || 'truckx-agent@phone.plivo.com'
+    browserDialTarget: process.env.PLIVO_BROWSER_DIAL_TARGET || 'truckx-agent@phone.plivo.com',
+    ringTimeoutSeconds: Math.max(5, Math.min(120, numberFromEnv('PLIVO_RING_TIMEOUT_SECONDS', 25))),
+    machineDetection: ['true', 'hangup'].includes(plivoMachineDetection) ? plivoMachineDetection : '',
+    machineDetectionTimeMs: Math.max(2000, Math.min(10000, numberFromEnv('PLIVO_MACHINE_DETECTION_TIME_MS', 5000)))
   },
   compliance: {
     defaultCallWindowStart: process.env.DEFAULT_CALL_WINDOW_START || '09:00',

@@ -35,15 +35,41 @@ function outcomeToLeadStatus(outcome, attempts = 0) {
   return 'retry';
 }
 
-function providerStatusToOutcome(status, answeredBy) {
+function isMachineAnswer(value) {
+  const normalized = String(value ?? '').trim().toLowerCase();
+  return normalized.includes('machine')
+    || ['true', 'yes', '1', 'voicemail', 'answering_machine', 'amd'].includes(normalized);
+}
+
+function hasAnswerTime(raw = {}) {
+  return Boolean(raw.AnswerTime || raw.answer_time || raw.answerTime);
+}
+
+function providerStatusToOutcome(status, answeredBy, raw = {}) {
   const normalizedStatus = String(status || '').toLowerCase();
   const normalizedAnsweredBy = String(answeredBy || '').toLowerCase();
+  const hangupDetails = [
+    raw.HangupCause,
+    raw.HangupCauseName,
+    raw.HangupSource,
+    raw.Event,
+    raw.machine_detection
+  ].filter(Boolean).join(' ').toLowerCase();
 
-  if (normalizedAnsweredBy.includes('machine')) return 'voicemail';
+  if (isMachineAnswer(answeredBy) || isMachineAnswer(raw.Machine) || isMachineAnswer(raw.machine_detection)) return 'voicemail';
+  if (hangupDetails.includes('machine') || hangupDetails.includes('voicemail')) return 'voicemail';
   if (normalizedAnsweredBy.includes('human')) return 'live_answer';
-  if (['busy', 'user_busy'].includes(normalizedStatus)) return 'busy';
-  if (['no-answer', 'no_answer', 'timeout', 'unanswered'].includes(normalizedStatus)) return 'no_answer';
+  if (['busy', 'user_busy'].includes(normalizedStatus) || hangupDetails.includes('busy')) return 'busy';
+  if (
+    ['no-answer', 'no_answer', 'timeout', 'unanswered'].includes(normalizedStatus)
+    || hangupDetails.includes('no answer')
+    || hangupDetails.includes('no-answer')
+    || hangupDetails.includes('timeout')
+  ) {
+    return 'no_answer';
+  }
   if (['failed', 'canceled', 'cancel', 'rejected'].includes(normalizedStatus)) return 'failed';
+  if (['completed', 'complete', 'hangup'].includes(normalizedStatus) && !hasAnswerTime(raw)) return 'no_answer';
   if (['completed', 'complete'].includes(normalizedStatus)) return 'live_answer';
   return '';
 }
@@ -73,7 +99,7 @@ function isTerminalProviderStatus(status, raw = {}) {
 function providerStatusIsLive(status, answeredBy) {
   const normalizedStatus = String(status || '').toLowerCase();
   const normalizedAnsweredBy = String(answeredBy || '').toLowerCase();
-  if (normalizedAnsweredBy.includes('machine')) return false;
+  if (isMachineAnswer(answeredBy)) return false;
   if (normalizedAnsweredBy.includes('human')) return true;
   return ['answered', 'in-progress', 'in_progress'].includes(normalizedStatus);
 }
@@ -87,6 +113,7 @@ export class DialerEngine {
     this.voiceProvider = createVoiceProvider();
     this.timer = null;
     this.isTicking = false;
+    this.queuedTick = null;
   }
 
   usesPersistentAgentSession() {
@@ -168,6 +195,16 @@ export class DialerEngine {
         addEvent('engine_error', error.message);
       });
     }, 2000);
+  }
+
+  scheduleTick(reason = 'scheduled') {
+    if (this.queuedTick) return;
+    this.queuedTick = setTimeout(() => {
+      this.queuedTick = null;
+      this.tick().catch((error) => {
+        addEvent('engine_error', error.message, { reason });
+      });
+    }, 0);
   }
 
   async syncHubSpotLeadsForCampaign(campaignId) {
@@ -509,6 +546,8 @@ export class DialerEngine {
       await this.cancelCompetingCalls(updatedCall);
     } else if (outcome === 'live_answer') {
       await this.pauseCampaignForLiveAnswer(updatedCall);
+    } else if (campaign?.status === 'running') {
+      this.scheduleTick('call_completed');
     }
 
     return updatedCall;
@@ -734,7 +773,7 @@ export class DialerEngine {
 
     const campaign = getStore().campaigns.find((item) => item.id === call.campaignId);
     if (campaign?.status === 'running') {
-      await this.tick();
+      this.scheduleTick('disposition_saved');
     }
 
     return { call: updatedCall, lead: updatedLead };
@@ -762,8 +801,8 @@ export class DialerEngine {
       return call;
     }
 
-    let outcome = providerStatusToOutcome(providerStatus, answeredBy);
-    if (!outcome && call.status === 'in_progress' && isTerminalProviderStatus(providerStatus, raw)) {
+    let outcome = providerStatusToOutcome(providerStatus, answeredBy, raw);
+    if (call.status === 'in_progress' && isTerminalProviderStatus(providerStatus, raw) && outcome !== 'voicemail') {
       outcome = 'live_answer';
     }
     if (!outcome) {

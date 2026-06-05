@@ -74,24 +74,28 @@ export function createPlivoProvider() {
     async createOutboundCall({ lead, campaign, callerIdNumber }) {
       assertPlivoConfig();
 
+      const callbackContext = {
+        campaignId: campaign.id,
+        leadId: lead.id,
+        sessionId: campaign.currentSessionId || '',
+        role: 'customer'
+      };
       const body = {
         from: plivoNumber(callerIdNumber || config.callerIdNumber),
         to: plivoNumber(lead.phone),
-        answer_url: webhookUrl('/webhooks/plivo/customer-answer', {
-          campaignId: campaign.id,
-          leadId: lead.id,
-          sessionId: campaign.currentSessionId || '',
-          role: 'customer'
-        }),
+        answer_url: webhookUrl('/webhooks/plivo/customer-answer', callbackContext),
         answer_method: 'POST',
-        hangup_url: webhookUrl('/webhooks/plivo/status', {
-          campaignId: campaign.id,
-          leadId: lead.id,
-          sessionId: campaign.currentSessionId || '',
-          role: 'customer'
-        }),
-        hangup_method: 'POST'
+        hangup_url: webhookUrl('/webhooks/plivo/status', callbackContext),
+        hangup_method: 'POST',
+        ring_timeout: config.plivo.ringTimeoutSeconds
       };
+
+      if (config.plivo.machineDetection) {
+        body.machine_detection = config.plivo.machineDetection;
+        body.machine_detection_time = config.plivo.machineDetectionTimeMs;
+        body.machine_detection_url = webhookUrl('/webhooks/plivo/machine', callbackContext);
+        body.machine_detection_method = 'POST';
+      }
 
       const response = await fetch(`https://api.plivo.com/v1/Account/${config.plivo.authId}/Call/`, {
         method: 'POST',
