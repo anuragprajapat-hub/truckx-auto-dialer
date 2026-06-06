@@ -69,6 +69,62 @@ function escapeHtml(value) {
     .replaceAll("'", '&#039;');
 }
 
+function fallbackLeadStatusOptions() {
+  return [
+    { label: 'New', value: 'NEW' },
+    { label: 'Connected', value: 'CONNECTED' },
+    { label: 'Follow up', value: 'FOLLOWUP' },
+    { label: 'Qualified', value: 'QUALIFIED' },
+    { label: 'Not interested', value: 'NOT_INTERESTED' },
+    { label: 'Bad timing', value: 'BAD_TIMING' },
+    { label: 'Do not call', value: 'DO_NOT_CALL' }
+  ];
+}
+
+function leadStatusOptions() {
+  return state?.settings?.leadStatusOptions?.options?.length
+    ? state.settings.leadStatusOptions.options
+    : fallbackLeadStatusOptions();
+}
+
+function leadStatusLabel(value) {
+  const clean = String(value || '');
+  const option = leadStatusOptions().find((item) => String(item.value) === clean);
+  return option?.label || clean.replaceAll('_', ' ');
+}
+
+function statusClass(value) {
+  return String(value || 'unknown')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '_');
+}
+
+function renderDispositionOptions() {
+  if (!elements.dispositionStatus) return;
+  const options = leadStatusOptions();
+  const key = options.map((option) => `${option.value}:${option.label}`).join('|');
+  if (elements.dispositionStatus.dataset.optionsKey === key) return;
+
+  const currentValue = elements.dispositionStatus.value;
+  elements.dispositionStatus.innerHTML = [
+    '<option value="">Select status</option>',
+    ...options.map((option) => `<option value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</option>`)
+  ].join('');
+  elements.dispositionStatus.dataset.optionsKey = key;
+  if (options.some((option) => String(option.value) === currentValue)) {
+    elements.dispositionStatus.value = currentValue;
+  }
+}
+
+function hubspotUpdateWarning(result) {
+  const update = result?.hubspotUpdate;
+  if (!update) return '';
+  if (update.error) return update.error;
+  if (update.partial) return (update.failures || []).join('; ') || 'Some HubSpot fields were not updated.';
+  return '';
+}
+
 function setToken(token) {
   authToken = String(token || '').trim();
   if (authToken) localStorage.setItem(TOKEN_KEY, authToken);
@@ -334,7 +390,7 @@ function disconnectBrowserSoftphone() {
 
 function statusPill(value, extraClass = '') {
   const clean = String(value || 'unknown');
-  return `<span class="pill ${escapeHtml(clean)} ${extraClass}">${escapeHtml(clean.replaceAll('_', ' '))}</span>`;
+  return `<span class="pill ${escapeHtml(statusClass(clean))} ${extraClass}">${escapeHtml(leadStatusLabel(clean))}</span>`;
 }
 
 function activeStatuses() {
@@ -766,6 +822,7 @@ function renderCalls() {
 
 function render() {
   showAgent();
+  renderDispositionOptions();
   renderHeader();
   renderStats();
   renderCampaigns();
@@ -851,7 +908,7 @@ elements.dispositionForm.addEventListener('submit', async (event) => {
   const callId = elements.dispositionForm.dataset.callId;
   if (!callId) return;
   try {
-    await api(`/api/calls/${callId}/disposition`, {
+    const result = await api(`/api/calls/${callId}/disposition`, {
       method: 'POST',
       body: JSON.stringify({
         status: elements.dispositionStatus.value,
@@ -859,7 +916,13 @@ elements.dispositionForm.addEventListener('submit', async (event) => {
       })
     });
     elements.dispositionForm.reset();
-    setNotice('Lead status saved. TruckX will resume dialing when the queue is ready.', 'success');
+    const warning = hubspotUpdateWarning(result);
+    setNotice(
+      warning
+        ? `Outcome saved locally, but HubSpot reported: ${warning}`
+        : 'Lead status saved in HubSpot. TruckX will resume dialing when the queue is ready.',
+      warning ? 'error' : 'success'
+    );
     await loadState();
   } catch (error) {
     setNotice(error.message, 'error');

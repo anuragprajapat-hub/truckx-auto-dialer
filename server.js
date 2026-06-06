@@ -6,6 +6,7 @@ import { config } from './src/config.js';
 import { normalizeUsPhone } from './src/compliance.js';
 import { dialerEngine } from './src/dialerEngine.js';
 import { sendAgentInviteEmail } from './src/email.js';
+import { fetchHubSpotLeadStatusOptions } from './src/hubspot.js';
 import { buildAgentReports } from './src/reports.js';
 import {
   acceptAgentInvite,
@@ -29,6 +30,7 @@ import {
 } from './src/store.js';
 
 const publicDir = path.resolve(process.cwd(), 'public');
+let lastLeadStatusOptionsErrorAt = 0;
 const mimeTypes = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
@@ -300,6 +302,28 @@ function maskedValue(value) {
   return `${text.slice(0, 6)}...${text.slice(-4)}`;
 }
 
+async function leadStatusOptionsForState() {
+  try {
+    return await fetchHubSpotLeadStatusOptions();
+  } catch (error) {
+    if (Date.now() - lastLeadStatusOptionsErrorAt > 1000 * 60 * 5) {
+      lastLeadStatusOptionsErrorAt = Date.now();
+      addEvent('hubspot_status_options_failed', error.message, {
+        property: config.hubspot.properties.leadStatus
+      });
+    }
+    return {
+      options: [
+        { label: 'New', value: 'NEW' },
+        { label: 'Connected', value: 'CONNECTED' },
+        { label: 'Follow up', value: 'FOLLOWUP' }
+      ],
+      source: 'fallback',
+      error: error.message
+    };
+  }
+}
+
 function bodyValue(body = {}, names = []) {
   const lookup = new Map(Object.entries(body).map(([key, value]) => [String(key).toLowerCase(), value]));
   for (const name of names) {
@@ -470,6 +494,7 @@ async function handleApi(request, response, url) {
 
   if (request.method === 'GET' && url.pathname === '/api/state') {
     const data = visibleState(getStore(), request.user);
+    const leadStatusOptions = await leadStatusOptionsForState();
     const reportData = {
       ...data,
       campaigns: data.campaigns.filter((campaign) => campaign.status !== 'deleted' && !campaign.deletedAt)
@@ -491,6 +516,7 @@ async function handleApi(request, response, url) {
         callerIdNumber: config.callerIdNumber,
         callerIdNumbers: config.callerIdNumbers,
         hubspotProperties: config.hubspot.properties,
+        leadStatusOptions,
         maxAttemptsPerLead: config.compliance.maxAttemptsPerLead
       },
       owners: data.owners,

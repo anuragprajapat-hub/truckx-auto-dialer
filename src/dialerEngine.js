@@ -754,12 +754,12 @@ export class DialerEngine {
       lastOutcome: status
     });
 
-    await this.updateHubSpotLeadSafe(updatedCall, updatedLead, {
+    const hubspotUpdate = await this.updateHubSpotLeadSafe(updatedCall, updatedLead, {
       status,
       lastOutcome: status,
       attempts: updatedLead.attempts
     }, 'hubspot_disposition_failed');
-    await this.createHubSpotCallLogSafe(
+    const hubspotCallLog = await this.createHubSpotCallLogSafe(
       { ...updatedCall, dispositionStatus: status, dispositionNote: String(input.note || '').trim() },
       updatedLead,
       status
@@ -776,7 +776,7 @@ export class DialerEngine {
       this.scheduleTick('disposition_saved');
     }
 
-    return { call: updatedCall, lead: updatedLead };
+    return { call: updatedCall, lead: updatedLead, hubspotUpdate, hubspotCallLog };
   }
 
   async completeProviderCall(providerCallId, providerStatus, answeredBy, raw = {}) {

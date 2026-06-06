@@ -4,6 +4,12 @@ import { displayTimeZone, normalizeTimeZone } from './timeZones.js';
 const HUBSPOT_BASE = 'https://api.hubapi.com';
 const HUBSPOT_RETRY_STATUSES = new Set([429, 500, 502, 503, 504]);
 const HUBSPOT_MAX_RETRIES = 4;
+const STATUS_OPTION_CACHE_MS = 1000 * 60 * 10;
+
+let leadStatusOptionsCache = {
+  expiresAt: 0,
+  options: null
+};
 
 function hasHubSpotToken() {
   return Boolean(config.hubspot.privateAppToken);
@@ -108,6 +114,20 @@ function hubspotLeadStatusValue(status) {
   return config.hubspot.leadStatusValues[normalized] || value;
 }
 
+function fallbackLeadStatusOptions() {
+  return [
+    { label: 'New', value: hubspotLeadStatusValue('new') },
+    { label: 'Connected', value: hubspotLeadStatusValue('connected') },
+    { label: 'Follow up', value: hubspotLeadStatusValue('follow_up') },
+    { label: 'Qualified', value: hubspotLeadStatusValue('qualified') },
+    { label: 'Not interested', value: hubspotLeadStatusValue('not_interested') },
+    { label: 'Bad timing', value: hubspotLeadStatusValue('bad_timing') },
+    { label: 'Do not call', value: hubspotLeadStatusValue('do_not_call') }
+  ].filter((option, index, options) => (
+    option.value && options.findIndex((item) => item.value === option.value) === index
+  ));
+}
+
 const HUBSPOT_DISPOSITIONS = {
   live_answer: 'f240bbac-87c9-4f6e-bf70-924b57d47db7',
   voicemail: 'b2cf5968-551e-4856-9783-52b3da59a7d0',
@@ -173,6 +193,36 @@ export async function fetchContactsForOwner(owner, limit = config.hubspot.syncLi
   } while (after && contacts.length < limit);
 
   return contacts.map((contact) => mapContact(contact, owner));
+}
+
+export async function fetchHubSpotLeadStatusOptions(options = {}) {
+  const fallback = fallbackLeadStatusOptions();
+  if (config.leadSource !== 'hubspot') {
+    return { options: fallback, source: 'fallback' };
+  }
+
+  if (!options.refresh && leadStatusOptionsCache.options && leadStatusOptionsCache.expiresAt > Date.now()) {
+    return { options: leadStatusOptionsCache.options, source: 'hubspot-cache' };
+  }
+
+  const field = config.hubspot.properties.leadStatus;
+  const result = await hubspotFetch(`/crm/v3/properties/contacts/${encodeURIComponent(field)}`);
+  const hubspotOptions = (result.options || [])
+    .filter((option) => !option.hidden)
+    .sort((a, b) => Number(a.displayOrder ?? 0) - Number(b.displayOrder ?? 0))
+    .map((option) => ({
+      label: option.label || option.value,
+      value: option.value
+    }))
+    .filter((option) => option.value);
+
+  const normalized = hubspotOptions.length ? hubspotOptions : fallback;
+  leadStatusOptionsCache = {
+    expiresAt: Date.now() + STATUS_OPTION_CACHE_MS,
+    options: normalized
+  };
+
+  return { options: normalized, source: hubspotOptions.length ? 'hubspot' : 'fallback' };
 }
 
 export async function updateHubSpotLead(lead, patch) {

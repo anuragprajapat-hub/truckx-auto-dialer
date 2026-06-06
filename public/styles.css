@@ -616,7 +616,11 @@ tr:last-child td {
 .pill.pending,
 .pill.not_installed,
 .pill.retry,
+.pill.followup,
+.pill.follow_up,
+.pill.open,
 .pill.voicemail,
+.pill.noanswer,
 .pill.no_answer {
   background: var(--amber-soft);
   color: var(--amber);

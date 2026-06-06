@@ -150,7 +150,7 @@ Credential instructions are in [docs/GET_CREDENTIALS.md](docs/GET_CREDENTIALS.md
 
 ## HubSpot Setup
 
-Create a HubSpot private app with scopes for reading contacts/owners and writing contacts/calls. The app expects these contact properties if you want full automation:
+Create a HubSpot private app with scopes for reading contacts/owners and writing contacts/calls. Also add the HubSpot contact property/schema read scope if it is available in your portal; the after-call popup uses it to load your real HubSpot Lead Status dropdown options instead of a hardcoded list. The app expects these contact properties if you want full automation:
 
 ```text
 dialer_consent

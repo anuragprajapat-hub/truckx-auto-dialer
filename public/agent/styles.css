@@ -606,7 +606,11 @@ tr.is-active-lead td {
 .pill.paused,
 .pill.voicemail,
 .pill.no_answer,
+.pill.noanswer,
+.pill.followup,
+.pill.follow_up,
 .pill.retry,
+.pill.open,
 .pill.pending {
   background: var(--amber-soft);
   border-color: #f4d49b;
