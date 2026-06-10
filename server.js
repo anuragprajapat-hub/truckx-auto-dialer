@@ -7,7 +7,7 @@ import { normalizeUsPhone } from './src/compliance.js';
 import { dialerEngine } from './src/dialerEngine.js';
 import { sendAgentInviteEmail } from './src/email.js';
 import { fetchHubSpotLeadStatusOptions } from './src/hubspot.js';
-import { buildAgentReports } from './src/reports.js';
+import { buildAgentReports, buildDashboardSummary } from './src/reports.js';
 import {
   acceptAgentInvite,
   addDncNumber,
@@ -527,6 +527,7 @@ async function handleApi(request, response, url) {
       reports: {
         agents: buildAgentReports(reportData)
       },
+      dashboard: buildDashboardSummary(reportData),
       dncNumbers: data.dncNumbers || [],
       calls: data.calls.slice(0, 100),
       events: data.events.slice(0, 50)
@@ -667,6 +668,7 @@ async function handleApi(request, response, url) {
   }
 
   if (request.method === 'GET' && url.pathname === '/api/agent/softphone-config') {
+    
     if (!request.user?.agentId) {
       sendJson(response, { error: 'Agent session required' }, 401);
       return true;
@@ -955,6 +957,30 @@ async function handleWebhooks(request, response, url) {
       ].join(''));
       return true;
     }
+
+    // 🆕 NEW: Send push notification to browser agents
+    const data = getStore();
+    const agents = data.agents || [];
+    const agentForCampaign = agents.find(a => a.ownerId === campaign.ownerId);
+    
+    if (agentForCampaign && agentForCampaign.browserPushSubscription) {
+      try {
+        // Send notification to agent's browser
+        // (We'll implement this next)
+        console.log(`[Push] Sending incoming call notification to agent ${agentForCampaign.email}`);
+        addEvent('browser_agent_notification_sent', 'Incoming call notification sent to agent', {
+          agentId: agentForCampaign.id,
+          campaignId: campaign.id,
+          fromNumber: body.From || body.CallerName || ''
+        });
+      } catch (error) {
+        console.error('[Push] Failed to send notification:', error);
+        addEvent('browser_agent_notification_failed', error.message, {
+          agentId: agentForCampaign?.id
+        });
+      }
+    }
+
 
     const updatedSession = await dialerEngine.markAgentSessionAnswered(campaign.id, session.id, body);
     sendXml(response, conferenceXml(updatedSession.conferenceName, {

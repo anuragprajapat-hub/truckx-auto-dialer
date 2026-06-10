@@ -2,6 +2,8 @@ let state = null;
 let setup = null;
 let selectedCampaignId = '';
 let activeView = 'powerlists';
+const DASHBOARD_TIME_ZONE = 'America/Los_Angeles';
+const ACTIVE_CALL_STATUSES = new Set(['dialing', 'queued', 'ringing', 'in_progress']);
 
 const elements = {
   systemLine: document.querySelector('#systemLine'),
@@ -270,6 +272,41 @@ function formatDuration(seconds) {
   return `${minutes}m`;
 }
 
+function reportingDateKey(value, timeZone = state?.dashboard?.timeZone || DASHBOARD_TIME_ZONE) {
+  if (!value) return '';
+  const date = value instanceof Date ? value : new Date(value);
+  if (!Number.isFinite(date.getTime())) return '';
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(date).map((part) => [part.type, part.value]));
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+function isDashboardDay(value) {
+  const today = state?.dashboard?.dateKey || reportingDateKey(new Date());
+  return reportingDateKey(value) === today;
+}
+
+function isActiveCall(call) {
+  return ACTIVE_CALL_STATUSES.has(call.status);
+}
+
+function dashboardCalls() {
+  return (state?.calls || []).filter((call) => (
+    isActiveCall(call)
+    || isDashboardDay(call.startedAt)
+    || isDashboardDay(call.completedAt)
+    || isDashboardDay(call.createdAt)
+  ));
+}
+
+function dashboardEvents() {
+  return (state?.events || []).filter((event) => isDashboardDay(event.createdAt));
+}
+
 function callDuration(call) {
   if (!call.startedAt || !call.completedAt) return '';
   const seconds = Math.max(0, Math.round((new Date(call.completedAt).getTime() - new Date(call.startedAt).getTime()) / 1000));
@@ -379,17 +416,25 @@ function renderOwners() {
 }
 
 function renderStats() {
-  const activeCalls = state.calls.filter((call) => ['dialing', 'queued', 'ringing', 'in_progress'].includes(call.status));
-  const connected = state.calls.filter((call) => call.outcome === 'live_answer').length;
-  const vm = state.calls.filter((call) => call.outcome === 'voicemail').length;
-  const reports = state.reports?.agents || [];
-  const dialerSeconds = reports.reduce((sum, report) => sum + Number(report.dialerSeconds || 0), 0);
+  const summary = state.dashboard || {};
+  const todayCalls = dashboardCalls();
+  const activeCalls = Number.isFinite(Number(summary.activeCalls))
+    ? Number(summary.activeCalls)
+    : (state.calls || []).filter(isActiveCall).length;
+  const connected = Number.isFinite(Number(summary.connected))
+    ? Number(summary.connected)
+    : todayCalls.filter((call) => call.outcome === 'live_answer').length;
+  const vm = Number.isFinite(Number(summary.voicemail))
+    ? Number(summary.voicemail)
+    : todayCalls.filter((call) => call.outcome === 'voicemail').length;
+  const dials = Number.isFinite(Number(summary.totalCalls)) ? Number(summary.totalCalls) : todayCalls.length;
+  const dialerSeconds = Number.isFinite(Number(summary.dialerSeconds)) ? Number(summary.dialerSeconds) : 0;
 
   const providerAccount = state.settings.providerAccount ? ` (${state.settings.providerAccount})` : '';
-  elements.systemLine.textContent = `Provider: ${state.settings.voiceProvider}${providerAccount} | Lead source: ${state.settings.leadSource} | Caller IDs: ${state.settings.callerIdNumbers.length}`;
+  elements.systemLine.textContent = `Provider: ${state.settings.voiceProvider}${providerAccount} | Lead source: ${state.settings.leadSource} | Caller IDs: ${state.settings.callerIdNumbers.length} | Dashboard: Today PST`;
   elements.statCampaigns.textContent = activeCampaigns().length;
-  elements.statDials.textContent = state.calls.length;
-  elements.statActive.textContent = activeCalls.length;
+  elements.statDials.textContent = dials;
+  elements.statActive.textContent = activeCalls;
   elements.statConnected.textContent = connected;
   elements.statVm.textContent = vm;
   elements.statHours.textContent = formatDuration(dialerSeconds);
@@ -485,10 +530,10 @@ function renderSelectedCampaign() {
 
 function renderCalls() {
   const campaign = selectedCampaign();
-  const activeStatuses = ['dialing', 'queued', 'ringing', 'in_progress'];
-  const activeCalls = state.calls.filter((call) => (!campaign || call.campaignId === campaign.id) && activeStatuses.includes(call.status));
-  const logs = state.calls.filter((call) => !campaign || call.campaignId === campaign.id).slice(0, 12);
-  const abandonedCalls = state.calls.filter((call) => (!campaign || call.campaignId === campaign.id) && call.outcome === 'abandoned').slice(0, 12);
+  const calls = dashboardCalls();
+  const activeCalls = (state.calls || []).filter((call) => (!campaign || call.campaignId === campaign.id) && isActiveCall(call));
+  const logs = calls.filter((call) => !campaign || call.campaignId === campaign.id).slice(0, 12);
+  const abandonedCalls = calls.filter((call) => (!campaign || call.campaignId === campaign.id) && call.outcome === 'abandoned').slice(0, 12);
 
   elements.activeCalls.innerHTML = activeCalls.length
     ? activeCalls
@@ -528,8 +573,9 @@ function renderCalls() {
 }
 
 function renderEvents() {
-  elements.eventLog.innerHTML = state.events.length
-    ? state.events
+  const events = dashboardEvents();
+  elements.eventLog.innerHTML = events.length
+    ? events
         .slice(0, 12)
         .map((event) => `
           <div class="event-item">
