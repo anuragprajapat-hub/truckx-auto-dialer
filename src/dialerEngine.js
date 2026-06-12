@@ -207,6 +207,26 @@ export class DialerEngine {
     }, 0);
   }
 
+  resumeCampaignQueue(campaignId, reason) {
+    const campaign = getStore().campaigns.find((item) => item.id === campaignId);
+    if (!campaign || !['running', 'connected', 'paused'].includes(campaign.status)) {
+      return campaign || null;
+    }
+
+    const previousStatus = campaign.status;
+    const resumed = previousStatus === 'running'
+      ? campaign
+      : setCampaignStatus(campaign.id, 'running');
+    if (previousStatus !== 'running') {
+      addEvent('campaign_resumed', `Campaign ${campaign.name} resumed automatically`, {
+        campaignId: campaign.id,
+        reason
+      });
+    }
+    this.scheduleTick(reason);
+    return resumed;
+  }
+
   async syncHubSpotLeadsForCampaign(campaignId) {
     if (config.leadSource !== 'hubspot') {
       return { skipped: true, reason: 'LEAD_SOURCE is not hubspot' };
@@ -550,8 +570,8 @@ export class DialerEngine {
       await this.cancelCompetingCalls(updatedCall);
     } else if (outcome === 'live_answer') {
       await this.pauseCampaignForLiveAnswer(updatedCall);
-    } else if (campaign?.status === 'running') {
-      this.scheduleTick('call_completed');
+    } else {
+      this.resumeCampaignQueue(updatedCall.campaignId, `call_completed_${outcome}`);
     }
 
     return updatedCall;
@@ -809,10 +829,7 @@ export class DialerEngine {
       leadId: lead.id
     });
 
-    const campaign = getStore().campaigns.find((item) => item.id === call.campaignId);
-    if (campaign?.status === 'running') {
-      this.scheduleTick('disposition_saved');
-    }
+    this.resumeCampaignQueue(call.campaignId, 'disposition_saved');
 
     return { call: updatedCall, lead: updatedLead, hubspotUpdate, hubspotCallLog };
   }
@@ -832,6 +849,18 @@ export class DialerEngine {
     }
 
     if (call.completedAt || call.outcome === 'abandoned') {
+      const correctedOutcome = providerStatusToOutcome(providerStatus, answeredBy, raw);
+      if (
+        correctedOutcome === 'voicemail'
+        && call.outcome === 'live_answer'
+        && call.requiresDisposition
+        && !call.dispositionAt
+      ) {
+        return this.completeCall(call, 'voicemail', {
+          ...raw,
+          correctedFrom: 'live_answer'
+        });
+      }
       updateCall(call.id, {
         lastProviderStatus: providerStatus || call.lastProviderStatus || '',
         rawHangup: raw

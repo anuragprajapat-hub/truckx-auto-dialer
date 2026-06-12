@@ -130,21 +130,16 @@ PST
 
 TruckX converts those to the correct US local call windows internally, but the dashboard shows the short labels.
 
-By default TruckX only dials leads with these statuses:
+By default TruckX can dial every otherwise safe HubSpot lead status. To intentionally restrict the queue, configure both:
 
 ```text
 CALLABLE_LEAD_STATUSES=new,retry,no_answer
+STRICT_CALLABLE_LEAD_STATUSES=true
 ```
 
-Statuses like `Won`, `REJECTED`, `VOICEMAIL`, and blank statuses are blocked unless you intentionally add them to `CALLABLE_LEAD_STATUSES`.
+The agent portal status filter can narrow an individual PowerList without enabling the global strict allowlist.
 
-If you want TruckX to sync more than 100 contacts under one owner, set:
-
-```text
-HUBSPOT_SYNC_LIMIT=1000
-```
-
-The app pages through HubSpot contacts up to that limit.
+TruckX pages through all contacts assigned to the selected HubSpot owner. There is no 1,000-contact application cap.
 
 ## 2. Voice Provider
 

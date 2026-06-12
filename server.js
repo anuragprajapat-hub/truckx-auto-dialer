@@ -578,6 +578,7 @@ async function handleApi(request, response, url) {
       plivoEndpointCount: endpointReadiness.endpointCount,
       automaticEndpointProvisioningReady: endpointReadiness.ready,
       defaultLeadStatusQueue: config.compliance.callableStatuses.length ? 'allowlist' : 'all_safe_statuses',
+      hubspotContactSync: 'all_owner_contacts',
       leadSource: config.leadSource,
       storage: storeBackend(),
       time: new Date().toISOString()
@@ -1199,30 +1200,6 @@ async function handleWebhooks(request, response, url) {
       ].join(''));
       return true;
     }
-
-    // 🆕 NEW: Send push notification to browser agents
-    const data = getStore();
-    const agents = data.agents || [];
-    const agentForCampaign = agents.find(a => a.ownerId === campaign.ownerId);
-    
-    if (agentForCampaign && agentForCampaign.browserPushSubscription) {
-      try {
-        // Send notification to agent's browser
-        // (We'll implement this next)
-        console.log(`[Push] Sending incoming call notification to agent ${agentForCampaign.email}`);
-        addEvent('browser_agent_notification_sent', 'Incoming call notification sent to agent', {
-          agentId: agentForCampaign.id,
-          campaignId: campaign.id,
-          fromNumber: body.From || body.CallerName || ''
-        });
-      } catch (error) {
-        console.error('[Push] Failed to send notification:', error);
-        addEvent('browser_agent_notification_failed', error.message, {
-          agentId: agentForCampaign?.id
-        });
-      }
-    }
-
 
     const updatedSession = await dialerEngine.markAgentSessionAnswered(campaign.id, session.id, body);
     sendXml(response, conferenceXml(updatedSession.conferenceName, {

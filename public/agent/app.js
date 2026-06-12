@@ -145,11 +145,7 @@ function renderLeadStatusFilter(campaign = selectedCampaign()) {
   elements.leadStatusFilter.dataset.optionsKey = key;
 }
 
-function requestConnectedCallNotifications() {
-  if ('Notification' in window && Notification.permission === 'default') {
-    Notification.requestPermission().catch(() => {});
-  }
-
+function prepareConnectedCallSound() {
   const AudioContextClass = window.AudioContext || window.webkitAudioContext;
   if (!AudioContextClass) return;
   notificationAudioContext ||= new AudioContextClass();
@@ -185,18 +181,6 @@ function notifyConnectedCall(call, lead) {
   if (!call?.id || lastNotifiedCallId === call.id) return;
   lastNotifiedCallId = call.id;
   playConnectedSound();
-
-  if ('Notification' in window && Notification.permission === 'granted') {
-    const notification = new Notification('Customer connected', {
-      body: `${call.leadName || lead?.name || 'HubSpot contact'} | ${call.leadPhone || lead?.phone || ''}`,
-      tag: `truckx-connected-${call.id}`,
-      requireInteraction: true
-    });
-    notification.onclick = () => {
-      window.focus();
-      notification.close();
-    };
-  }
 }
 
 function hubspotUpdateWarning(result) {
@@ -1000,7 +984,7 @@ elements.leadStatusFilter?.addEventListener('change', async () => {
 elements.startButton.addEventListener('click', async () => {
   const campaign = selectedCampaign();
   if (!campaign) return;
-  requestConnectedCallNotifications();
+  prepareConnectedCallSound();
   let startedCampaign = null;
   try {
     const wasWaitingForBrowserAudio = needsBrowserAudio(campaign);
@@ -1031,7 +1015,7 @@ elements.hangupCallButton?.addEventListener('click', async () => {
   elements.hangupCallButton.textContent = 'Ending call...';
   try {
     await api(`/api/calls/${callId}/hangup`, { method: 'POST' });
-    setNotice('Customer call ended. Select the call outcome to continue dialing.', 'success');
+    setNotice('Customer call ended. Save the outcome and dialing will resume automatically.', 'success');
     await loadState();
   } catch (error) {
     setNotice(error.message, 'error');

@@ -123,8 +123,8 @@ export const config = {
   defaultAgentPhone: process.env.DEFAULT_AGENT_PHONE || '+15557654321',
   voicemailAudioUrl: process.env.VOICEMAIL_AUDIO_URL || '',
   hubspot: {
+    apiBaseUrl: process.env.HUBSPOT_API_BASE_URL || 'https://api.hubapi.com',
     privateAppToken: process.env.HUBSPOT_PRIVATE_APP_TOKEN || '',
-    syncLimit: numberFromEnv('HUBSPOT_SYNC_LIMIT', 1000),
     properties: {
       consent: process.env.HUBSPOT_PROP_CONSENT || 'dialer_consent',
       doNotCall: process.env.HUBSPOT_PROP_DNC || 'do_not_call',

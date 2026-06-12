@@ -645,21 +645,26 @@ export function setCampaignStatus(campaignId, status) {
     if (status === 'running' && previousStatus !== 'running') {
       if (!campaign.startedAt) campaign.startedAt = now;
       campaign.stoppedAt = '';
-      const session = {
-        id: randomUUID(),
-        campaignId: campaign.id,
-        ownerId: campaign.ownerId,
-        startedAt: now,
-        endedAt: '',
-        endedReason: '',
-        agentCallId: '',
-        agentCallStatus: '',
-        agentLiveCallId: '',
-        agentConnectedAt: '',
-        conferenceName: ''
-      };
-      data.sessions.unshift(session);
-      campaign.currentSessionId = session.id;
+      const currentSession = data.sessions.find((item) => (
+        item.id === campaign.currentSessionId && !item.endedAt
+      ));
+      if (!currentSession) {
+        const session = {
+          id: randomUUID(),
+          campaignId: campaign.id,
+          ownerId: campaign.ownerId,
+          startedAt: now,
+          endedAt: '',
+          endedReason: '',
+          agentCallId: '',
+          agentCallStatus: '',
+          agentLiveCallId: '',
+          agentConnectedAt: '',
+          conferenceName: ''
+        };
+        data.sessions.unshift(session);
+        campaign.currentSessionId = session.id;
+      }
     }
 
     if (['stopped', 'complete', 'paused'].includes(status)) {

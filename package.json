@@ -6,7 +6,8 @@
   "description": "Standalone Truckx Auto Dialer for HubSpot-connected outbound sales calling.",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "test": "node --test --test-concurrency=1"
   },
   "engines": {
     "node": ">=20"

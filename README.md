@@ -5,7 +5,7 @@ This is a standalone autodialer prototype for a sales team calling US numbers. I
 ## What It Does Now
 
 - Creates owner-based campaigns.
-- Pulls contacts by HubSpot owner and pages through up to `HUBSPOT_SYNC_LIMIT` contacts.
+- Pulls all contacts assigned to a HubSpot owner using paged API requests.
 - Filters campaigns by HubSpot `TIME ZONE` values: `EST`, `CST`, `MST`, `PST`, or all zones.
 - Runs a configurable multi-line predictive dialer simulation.
 - Detects mock outcomes: live answer, voicemail, no answer, busy, failed.
@@ -154,7 +154,7 @@ Credential instructions are in [docs/GET_CREDENTIALS.md](docs/GET_CREDENTIALS.md
 
 ## HubSpot Setup
 
-Create a HubSpot private app with scopes for reading contacts/owners and writing contacts/calls. Also add the HubSpot contact property/schema read scope if it is available in your portal; the after-call popup uses it to load your real HubSpot Lead Status dropdown options instead of a hardcoded list. The app expects these contact properties if you want full automation:
+Create a HubSpot private app with scopes for reading contacts/owners and writing contacts/calls. Also add the HubSpot contact property/schema read scope if it is available in your portal; the after-call popup uses it to load your real HubSpot Lead Status dropdown options instead of a hardcoded list. The app uses these optional contact properties when they exist:
 
 ```text
 dialer_consent
@@ -163,6 +163,8 @@ time_zone
 last_call_outcome
 dialer_attempts
 ```
+
+Missing optional properties are skipped. Lead Status and HubSpot call activities still update.
 
 If you already have existing properties, link them by internal name in Render:
 

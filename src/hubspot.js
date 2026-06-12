@@ -1,10 +1,10 @@
 import { config } from './config.js';
 import { displayTimeZone, normalizeTimeZone } from './timeZones.js';
 
-const HUBSPOT_BASE = 'https://api.hubapi.com';
 const HUBSPOT_RETRY_STATUSES = new Set([429, 500, 502, 503, 504]);
 const HUBSPOT_MAX_RETRIES = 4;
 const STATUS_OPTION_CACHE_MS = 1000 * 60 * 10;
+const CONTACT_PAGE_SIZE = 200;
 
 let leadStatusOptionsCache = {
   expiresAt: 0,
@@ -35,7 +35,7 @@ async function hubspotFetch(path, options = {}, attempt = 0) {
     throw new Error('Missing HUBSPOT_PRIVATE_APP_TOKEN');
   }
 
-  const response = await fetch(`${HUBSPOT_BASE}${path}`, {
+  const response = await fetch(`${String(config.hubspot.apiBaseUrl).replace(/\/$/, '')}${path}`, {
     ...options,
     headers: {
       Authorization: `Bearer ${config.hubspot.privateAppToken}`,
@@ -52,7 +52,10 @@ async function hubspotFetch(path, options = {}, attempt = 0) {
       await sleep(retryDelayMs(response, attempt));
       return hubspotFetch(path, options, attempt + 1);
     }
-    throw new Error(body.message || `HubSpot request failed with ${response.status}`);
+    const error = new Error(body.message || `HubSpot request failed with ${response.status}`);
+    error.status = response.status;
+    error.body = body;
+    throw error;
   }
 
   return body;
@@ -142,12 +145,22 @@ export async function fetchHubSpotOwners() {
     .map(mapOwner);
 }
 
-export async function fetchContactsForOwner(owner, limit = config.hubspot.syncLimit) {
+function isMissingPropertyError(error) {
+  const detail = JSON.stringify(error?.body || {});
+  return error?.status === 400 && (
+    detail.includes('PROPERTY_DOESNT_EXIST')
+    || detail.includes('does not exist')
+  );
+}
+
+export async function fetchContactsForOwner(owner, limit = 0) {
   const field = config.hubspot.properties;
   const contacts = [];
+  const maximum = Number(limit) > 0 ? Math.floor(Number(limit)) : Number.POSITIVE_INFINITY;
   let after = '';
 
   do {
+    const remaining = Number.isFinite(maximum) ? maximum - contacts.length : CONTACT_PAGE_SIZE;
     const body = {
       filterGroups: [
         {
@@ -177,7 +190,7 @@ export async function fetchContactsForOwner(owner, limit = config.hubspot.syncLi
         field.timeZone,
         'timezone'
       ].filter((property, index, properties) => property && properties.indexOf(property) === index),
-      limit: Math.min(100, Math.max(1, limit - contacts.length))
+      limit: Math.min(CONTACT_PAGE_SIZE, Math.max(1, remaining))
     };
 
     if (after) body.after = after;
@@ -189,10 +202,10 @@ export async function fetchContactsForOwner(owner, limit = config.hubspot.syncLi
 
     contacts.push(...(result.results || []));
     after = result.paging?.next?.after || '';
-    if (after) await sleep(350);
-  } while (after && contacts.length < limit);
+    if (after) await sleep(250);
+  } while (after && contacts.length < maximum);
 
-  return contacts.map((contact) => mapContact(contact, owner));
+  return contacts.slice(0, maximum).map((contact) => mapContact(contact, owner));
 }
 
 export async function fetchHubSpotLeadStatusOptions(options = {}) {
@@ -252,6 +265,7 @@ export async function updateHubSpotLead(lead, patch) {
 
     const results = {};
     const failures = [];
+    const skippedProperties = [];
     for (const [property, value] of entries) {
       try {
         results[property] = await hubspotFetch(updatePath, {
@@ -259,17 +273,22 @@ export async function updateHubSpotLead(lead, patch) {
           body: JSON.stringify({ properties: { [property]: value } })
         });
       } catch (propertyError) {
-        failures.push(`${property}: ${propertyError.message}`);
+        if (isMissingPropertyError(propertyError)) {
+          skippedProperties.push(property);
+        } else {
+          failures.push(`${property}: ${propertyError.message}`);
+        }
       }
     }
 
-    if (failures.length === entries.length) {
+    if (!Object.keys(results).length && failures.length) {
       throw new Error(failures.join('; '));
     }
 
     return {
       partial: failures.length > 0,
       failures,
+      skippedProperties,
       results
     };
   }
