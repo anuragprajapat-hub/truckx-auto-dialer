@@ -107,6 +107,10 @@
                   <input id="maxParallelCalls" name="maxParallelCalls" type="number" min="1" max="10" value="2">
                 </label>
                 <label>
+                  Verified caller ID
+                  <input id="campaignCallerId" name="callerIdNumber" list="verifiedCallerIdOptions" placeholder="+16505551234" required>
+                </label>
+                <label>
                   Agent phone
                   <input id="agentPhone" name="agentPhone" placeholder="+15557654321">
                 </label>
@@ -136,7 +140,7 @@
                     </label>
                     <label class="inline-setting caller-id-setting">
                       Caller ID
-                      <input id="selectedCampaignCallerId" placeholder="+16505551234">
+                      <input id="selectedCampaignCallerId" list="verifiedCallerIdOptions" placeholder="+16505551234">
                     </label>
                     <button id="updateCampaignButton" title="Update selected PowerList settings">Update</button>
                     <button id="syncHubSpotButton" title="Sync HubSpot leads">Sync</button>
@@ -288,7 +292,7 @@
                   </label>
                   <label>
                     Verified caller ID
-                    <input id="agentCallerIdNumber" name="callerIdNumber" placeholder="+16505551234" required>
+                    <input id="agentCallerIdNumber" name="callerIdNumber" list="verifiedCallerIdOptions" placeholder="+16505551234" required>
                   </label>
                   <label>
                     Plivo endpoint username
@@ -393,6 +397,7 @@
       </div>
     </div>
 
+    <datalist id="verifiedCallerIdOptions"></datalist>
     <script src="/app.js" type="module"></script>
   </body>
 </html>

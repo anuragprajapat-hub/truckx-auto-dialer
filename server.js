@@ -8,6 +8,7 @@ import { dialerEngine } from './src/dialerEngine.js';
 import { sendAgentInviteEmail } from './src/email.js';
 import { fetchHubSpotLeadStatusOptions } from './src/hubspot.js';
 import { buildAgentReports, buildDashboardSummary } from './src/reports.js';
+import { assertPlivoVerifiedCallerId, fetchPlivoVerifiedCallerIds } from './src/voice/plivoCallerIds.js';
 import {
   acceptAgentInvite,
   addDncNumber,
@@ -33,6 +34,7 @@ import {
 
 const publicDir = path.resolve(process.cwd(), 'public');
 let lastLeadStatusOptionsErrorAt = 0;
+let lastVerifiedCallerIdsErrorAt = 0;
 const mimeTypes = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
@@ -355,6 +357,32 @@ async function leadStatusOptionsForState() {
   }
 }
 
+async function verifiedCallerIdsForState() {
+  if (config.voiceProvider !== 'plivo') {
+    return {
+      callerIds: config.callerIdNumbers.map((phoneNumber) => ({
+        phoneNumber,
+        alias: 'Configured caller ID'
+      })),
+      source: 'config'
+    };
+  }
+
+  try {
+    return await fetchPlivoVerifiedCallerIds();
+  } catch (error) {
+    if (Date.now() - lastVerifiedCallerIdsErrorAt > 1000 * 60 * 5) {
+      lastVerifiedCallerIdsErrorAt = Date.now();
+      addEvent('plivo_verified_caller_ids_failed', error.message);
+    }
+    return {
+      callerIds: [],
+      source: 'unavailable',
+      error: error.message
+    };
+  }
+}
+
 function bodyValue(body = {}, names = []) {
   const lookup = new Map(Object.entries(body).map(([key, value]) => [String(key).toLowerCase(), value]));
   for (const name of names) {
@@ -509,6 +537,7 @@ function campaignIdFromPath(pathname, action) {
 async function handleApi(request, response, url) {
   if (request.method === 'GET' && url.pathname === '/api/health') {
     const browserEndpoints = browserEndpointStatus();
+    const verifiedCallerIds = await verifiedCallerIdsForState();
     sendJson(response, {
       ok: true,
       appName: 'TruckX Auto Dialer',
@@ -518,6 +547,8 @@ async function handleApi(request, response, url) {
       browserSoftphoneConfigured: browserEndpoints.configured,
       browserUsername: maskedValue(config.plivo.browserUsername),
       perAgentBrowserEndpoints: browserEndpoints.perAgentCount,
+      verifiedCallerIdCount: verifiedCallerIds.callerIds.length,
+      verifiedCallerIdLookupReady: !verifiedCallerIds.error,
       leadSource: config.leadSource,
       storage: storeBackend(),
       time: new Date().toISOString()
@@ -528,6 +559,9 @@ async function handleApi(request, response, url) {
   if (request.method === 'GET' && url.pathname === '/api/state') {
     const data = visibleState(getStore(), request.user);
     const leadStatusOptions = await leadStatusOptionsForState();
+    const verifiedCallerIds = request.user?.role === 'admin'
+      ? await verifiedCallerIdsForState()
+      : { callerIds: [], source: 'restricted' };
     const reportData = {
       ...data,
       campaigns: data.campaigns.filter((campaign) => campaign.status !== 'deleted' && !campaign.deletedAt)
@@ -548,6 +582,7 @@ async function handleApi(request, response, url) {
         leadSource: config.leadSource,
         callerIdNumber: config.callerIdNumber,
         callerIdNumbers: config.callerIdNumbers,
+        verifiedCallerIds,
         hubspotProperties: config.hubspot.properties,
         leadStatusOptions,
         maxAttemptsPerLead: config.compliance.maxAttemptsPerLead
@@ -633,12 +668,12 @@ async function handleApi(request, response, url) {
 
     const body = await parseBody(request);
     if (body.callerIdNumber) {
-      const callerIdNumber = normalizeUsPhone(body.callerIdNumber);
-      if (!callerIdNumber) {
-        sendJson(response, { error: 'Enter a valid US caller ID number' }, 400);
+      try {
+        body.callerIdNumber = await assertPlivoVerifiedCallerId(body.callerIdNumber);
+      } catch (error) {
+        sendJson(response, { error: error.message }, 400);
         return true;
       }
-      body.callerIdNumber = callerIdNumber;
     }
     const endpointUsername = normalizedEndpointUsername(body.plivoEndpointUsername);
     const endpointPassword = String(body.plivoEndpointPassword || '');
@@ -814,6 +849,14 @@ async function handleApi(request, response, url) {
   if (request.method === 'POST' && url.pathname === '/api/campaigns') {
     if (requireAdmin(request, response)) return true;
     const body = await parseBody(request);
+    if (body.callerIdNumber) {
+      try {
+        body.callerIdNumber = await assertPlivoVerifiedCallerId(body.callerIdNumber);
+      } catch (error) {
+        sendJson(response, { error: error.message }, 400);
+        return true;
+      }
+    }
     const campaign = createCampaign(body);
     sendJson(response, campaign, 201);
     return true;
@@ -833,12 +876,12 @@ async function handleApi(request, response, url) {
           leadStatusFilters: body.leadStatusFilters
         };
     if (patch.callerIdNumber) {
-      const callerIdNumber = normalizeUsPhone(patch.callerIdNumber);
-      if (!callerIdNumber) {
-        sendJson(response, { error: 'Enter a valid US caller ID number' }, 400);
+      try {
+        patch.callerIdNumber = await assertPlivoVerifiedCallerId(patch.callerIdNumber);
+      } catch (error) {
+        sendJson(response, { error: error.message }, 400);
         return true;
       }
-      patch.callerIdNumber = callerIdNumber;
     }
     sendJson(response, updateCampaign(updateCampaignMatch[1], patch));
     dialerEngine.scheduleTick('campaign_updated');

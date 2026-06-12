@@ -18,6 +18,8 @@ const elements = {
   ownerSelect: document.querySelector('#ownerSelect'),
   syncOwnersButton: document.querySelector('#syncOwnersButton'),
   campaignForm: document.querySelector('#campaignForm'),
+  campaignCallerId: document.querySelector('#campaignCallerId'),
+  verifiedCallerIdOptions: document.querySelector('#verifiedCallerIdOptions'),
   campaignList: document.querySelector('#campaignList'),
   activeCampaignName: document.querySelector('#activeCampaignName'),
   activeCampaignMeta: document.querySelector('#activeCampaignMeta'),
@@ -87,6 +89,19 @@ function leadStatusLabel(value) {
   const clean = String(value || '');
   const option = leadStatusOptions().find((item) => String(item.value) === clean);
   return option?.label || clean.replaceAll('_', ' ');
+}
+
+function verifiedCallerIds() {
+  return state?.settings?.verifiedCallerIds?.callerIds || [];
+}
+
+function renderVerifiedCallerIds() {
+  if (!elements.verifiedCallerIdOptions) return;
+  elements.verifiedCallerIdOptions.innerHTML = verifiedCallerIds()
+    .map((callerId) => (
+      `<option value="${escapeHtml(callerId.phoneNumber)}">${escapeHtml(callerId.alias || callerId.phoneNumber)}</option>`
+    ))
+    .join('');
 }
 
 function statusClass(value) {
@@ -426,6 +441,13 @@ function renderOwners() {
   const owner = owners.find((item) => item.id === elements.ownerSelect.value);
   if (owner && !document.querySelector('#agentPhone').value) {
     document.querySelector('#agentPhone').value = owner.agentPhone || '';
+  }
+  if (owner && !elements.campaignCallerId.value) {
+    const agent = state.agents.find((item) => (
+      item.ownerId === owner.id
+      || String(item.hubspotOwnerId || '') === String(owner.hubspotOwnerId || '')
+    ));
+    elements.campaignCallerId.value = agent?.callerIdNumber || '';
   }
 }
 
@@ -858,6 +880,7 @@ async function loadState() {
 
 function render() {
   setView(activeView);
+  renderVerifiedCallerIds();
   renderDispositionOptions();
   renderOwners();
   renderStats();
@@ -881,18 +904,28 @@ elements.navButtons.forEach((button) => {
 
 elements.ownerSelect.addEventListener('change', () => {
   const owner = state.owners.find((item) => item.id === elements.ownerSelect.value);
+  const agent = state.agents.find((item) => (
+    item.ownerId === owner?.id
+    || String(item.hubspotOwnerId || '') === String(owner?.hubspotOwnerId || '')
+  ));
   document.querySelector('#agentPhone').value = owner?.agentPhone || '';
+  elements.campaignCallerId.value = agent?.callerIdNumber || '';
 });
 
 elements.campaignForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   const form = new FormData(elements.campaignForm);
-  const campaign = await api('/api/campaigns', {
-    method: 'POST',
-    body: JSON.stringify(Object.fromEntries(form))
-  });
-  selectedCampaignId = campaign.id;
-  await loadState();
+  try {
+    const campaign = await api('/api/campaigns', {
+      method: 'POST',
+      body: JSON.stringify(Object.fromEntries(form))
+    });
+    selectedCampaignId = campaign.id;
+    setNotice(`PowerList created with caller ID ${campaign.callerIdNumber}.`, 'success');
+    await loadState();
+  } catch (error) {
+    setNotice(`PowerList creation failed: ${error.message}`, 'error');
+  }
 });
 
 elements.agentInviteForm.addEventListener('submit', async (event) => {
