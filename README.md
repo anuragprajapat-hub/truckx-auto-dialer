@@ -13,7 +13,7 @@ This is a standalone autodialer prototype for a sales team calling US numbers. I
 - Updates lead status in the local store.
 - Shows live campaign, queue, active calls, call log, and agent reports in the browser.
 - Adds an admin-style portal with PowerLists, Reports, Call History, Agents, Live, and Setup sections.
-- Adds an agent-only dialer portal where agents can use assigned PowerLists, start/stop dialing, see calls, and save after-call lead status.
+- Adds an agent-only dialer portal where agents can use assigned PowerLists, filter by HubSpot lead status, start/stop dialing, see connected customer details, hang up a customer leg, and save after-call lead status.
 - Supports browser softphone mode so the agent can click Start, connect audio in Chrome, and stay connected while TruckX dials customers.
 - Adds TruckX logo assets, favicon, agent web login branding, and a startup splash screen.
 - Lets admins invite agents by name/email and HubSpot owner.
@@ -81,9 +81,11 @@ Hangup Method: POST
 
 Then create a Plivo Endpoint, attach it to that application, and put the endpoint username/password in Render as `PLIVO_BROWSER_USERNAME` and `PLIVO_BROWSER_PASSWORD`. After Render redeploys, the agent clicks Start, allows microphone access, and TruckX begins dialing customers only after browser audio connects.
 
-The current browser mode is ready for one shared test endpoint. For multiple live agents, create one Plivo Endpoint per agent and store separate endpoint credentials per agent before running concurrent sessions.
+For multiple live agents, create one Plivo Endpoint per agent. In the TruckX **Agents** form, save that endpoint's username/password and the agent's verified caller ID with the matching HubSpot owner. The global `PLIVO_BROWSER_USERNAME`, `PLIVO_BROWSER_PASSWORD`, and `CALLER_ID_NUMBER` remain fallbacks for older test accounts only.
 
-In browser mode, the PowerList `Lines` value controls predictive customer dialing. If `Lines` is `3`, TruckX can ring up to 3 customer numbers while the agent is idle in the browser audio session. As soon as one customer answers, TruckX cancels the remaining ringing calls and pauses new dialing until that conversation ends and the agent saves the after-call outcome. If another customer answers after the agent is already connected, TruckX hangs up that extra customer leg and records it as `abandoned` so it is visible in the agent and admin Live views.
+In browser mode, the PowerList `Lines` value controls predictive customer dialing and can be edited after creation. If `Lines` is `3`, TruckX can ring up to 3 customer numbers while the agent is idle in the browser audio session. As soon as one customer answers, TruckX cancels the remaining ringing calls and pauses new dialing until that conversation ends and the agent saves the after-call outcome. If another customer answers after the agent is already connected, TruckX hangs up that extra customer leg and records it as `abandoned` so it is visible in the agent and admin Live views. Voicemail and no-answer results do not stop the PowerList; the next eligible contacts are dialed automatically.
+
+The agent lead-status filter creates an explicit queue, so an agent can select a HubSpot value such as `VOICEMAIL` or `FOLLOWUP` even when it is outside the default `new,retry,no_answer` queue. Global DNC, invalid-number, provider-error, time-zone, and maximum-attempt checks still apply.
 
 For separate agent logins, set `APP_USERS` instead of only one global login:
 
@@ -107,7 +109,9 @@ Admins can invite an agent from the **Agents** page:
 2. Open **Agents**.
 3. Enter the agent name and email.
 4. Select the matching HubSpot owner.
-5. Click **Send Invitation**.
+5. Enter the agent's Plivo-verified caller ID.
+6. For simultaneous agents, enter that agent's unique Plivo Endpoint username and password.
+7. Click **Send Invitation**.
 
 If email sending is not configured, TruckX creates a web login link and shows **Copy web login link** in the Agents table. If email sending is configured, the app emails the login link automatically.
 
@@ -129,6 +133,8 @@ For real-agent testing:
 5. The agent selects an assigned PowerList and clicks **Start Audio**.
 
 The old `/extension/?invite=...` setup links now redirect into `/agent/?token=...`, so agents do not need to install the unpacked Chrome extension for testing. The starter extension still lives in `extension/` for future HubSpot page integration.
+
+Deleting an agent removes their TruckX access and pending login links but keeps historical calls and reports. The same email can be invited again later.
 
 ## Logo Options
 

@@ -13,8 +13,21 @@ export function isCallableStatus(status) {
   return config.compliance.callableStatuses.includes(String(status || '').toLowerCase());
 }
 
+function campaignLeadStatusFilters(campaign) {
+  return Array.isArray(campaign?.leadStatusFilters)
+    ? campaign.leadStatusFilters.map((value) => String(value).trim().toLowerCase()).filter(Boolean)
+    : [];
+}
+
+export function matchesCampaignLeadStatus(lead, campaign) {
+  const filters = campaignLeadStatusFilters(campaign);
+  if (!filters.length) return true;
+  return filters.includes(String(lead?.status || '').trim().toLowerCase());
+}
+
 export function evaluateLeadForDial(lead, campaign, context = {}) {
   const phone = normalizeUsPhone(lead.phone);
+  const leadStatus = String(lead.status || '').trim().toLowerCase();
   if (!phone) {
     return { allowed: false, reason: 'Invalid or non-US phone number' };
   }
@@ -23,16 +36,24 @@ export function evaluateLeadForDial(lead, campaign, context = {}) {
     return { allowed: false, reason: 'Number is on global DNC list' };
   }
 
-  if (lead.doNotCall || lead.status === 'do_not_call') {
+  if (lead.doNotCall || leadStatus === 'do_not_call') {
     return { allowed: false, reason: 'Lead is marked do not call' };
   }
 
-  if (lead.status === 'provider_error') {
+  if (leadStatus === 'provider_error') {
     return { allowed: false, reason: `Provider error: ${lead.lastProviderError || 'Call provider rejected the request'}` };
   }
 
   if (!matchesCampaignTimeZone(lead, campaign)) {
     return { allowed: false, reason: `Not in ${campaignTimeZoneTarget(campaign)} campaign` };
+  }
+
+  if (!matchesCampaignLeadStatus(lead, campaign)) {
+    return { allowed: false, reason: 'Lead status does not match the selected filter' };
+  }
+
+  if (!campaignLeadStatusFilters(campaign).length && !isCallableStatus(lead.status)) {
+    return { allowed: false, reason: 'Lead status is outside the default dialing queue' };
   }
 
   if ((lead.attempts || 0) >= config.compliance.maxAttemptsPerLead) {

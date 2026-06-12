@@ -91,6 +91,12 @@
                 PowerList
                 <select id="campaignSelect"></select>
               </label>
+              <label>
+                Lead status filter
+                <select id="leadStatusFilter">
+                  <option value="">Default dialing queue</option>
+                </select>
+              </label>
               <button id="startButton" class="success-button" type="button">Start</button>
               <button id="stopButton" class="danger-button" type="button">Stop</button>
             </div>
@@ -172,6 +178,38 @@
             <div id="abandonedCalls" class="card-list"></div>
           </section>
         </aside>
+      </section>
+
+      <section id="connectedCallPanel" class="connected-call-modal" hidden aria-live="assertive">
+        <div class="connected-call-card">
+          <div class="connected-call-heading">
+            <div>
+              <span class="eyebrow">Customer connected</span>
+              <h1 id="connectedCallName">Customer</h1>
+              <p id="connectedCallCompany">HubSpot contact</p>
+            </div>
+            <span class="pill connected">Live</span>
+          </div>
+          <div class="connected-customer-details">
+            <div>
+              <span>Phone</span>
+              <strong id="connectedCallPhone">-</strong>
+            </div>
+            <div>
+              <span>Email</span>
+              <strong id="connectedCallEmail">-</strong>
+            </div>
+            <div>
+              <span>Lead status</span>
+              <strong id="connectedCallStatus">-</strong>
+            </div>
+            <div>
+              <span>PowerList</span>
+              <strong id="connectedCallCampaign">-</strong>
+            </div>
+          </div>
+          <button id="hangupCallButton" class="hangup-button" type="button">Hang up customer</button>
+        </div>
       </section>
     </main>
 

@@ -148,6 +148,14 @@ function normalizeStore(data) {
     if (!campaign.timeZoneTarget) campaign.timeZoneTarget = 'ALL';
     if (typeof campaign.pauseOnLiveAnswer !== 'boolean') campaign.pauseOnLiveAnswer = true;
     if (!campaign.dialMode) campaign.dialMode = 'predictive';
+    if (!Array.isArray(campaign.leadStatusFilters)) campaign.leadStatusFilters = [];
+    if (typeof campaign.callerIdNumber !== 'string') campaign.callerIdNumber = '';
+  }
+  for (const agent of data.agents || []) {
+    if (typeof agent.callerIdNumber !== 'string') agent.callerIdNumber = '';
+    if (typeof agent.plivoEndpointUsername !== 'string') agent.plivoEndpointUsername = '';
+    if (typeof agent.plivoEndpointPassword !== 'string') agent.plivoEndpointPassword = '';
+    if (typeof agent.plivoDialTarget !== 'string') agent.plivoDialTarget = '';
   }
   return data;
 }
@@ -295,6 +303,11 @@ export function createCampaign(input) {
     if (!owner) {
       throw new Error('Owner not found');
     }
+    const agent = data.agents.find((item) => (
+      item.ownerId === owner.id
+      || String(item.hubspotOwnerId || '') === String(owner.hubspotOwnerId || '')
+    ));
+    const agentCallerId = String(agent?.callerIdNumber || '').trim();
 
     const campaign = {
       id: randomUUID(),
@@ -305,7 +318,13 @@ export function createCampaign(input) {
       status: 'draft',
       maxParallelCalls: Math.max(1, Math.min(10, Number(input.maxParallelCalls || 2))),
       agentPhone: input.agentPhone || owner.agentPhone,
-      callerIdNumbers: Array.isArray(input.callerIdNumbers) ? input.callerIdNumbers : [],
+      callerIdNumber: String(input.callerIdNumber || agentCallerId).trim(),
+      callerIdNumbers: Array.isArray(input.callerIdNumbers)
+        ? input.callerIdNumbers
+        : (agentCallerId ? [agentCallerId] : []),
+      leadStatusFilters: Array.isArray(input.leadStatusFilters)
+        ? input.leadStatusFilters.map((value) => String(value).trim()).filter(Boolean)
+        : [],
       timeZoneTarget: String(input.timeZoneTarget || 'ALL').toUpperCase(),
       dialMode: input.dialMode || 'predictive',
       pauseOnLiveAnswer: input.pauseOnLiveAnswer !== false,
@@ -325,6 +344,46 @@ export function createCampaign(input) {
       message: `Campaign created for ${owner.name}`,
       details: { campaignId: campaign.id },
       createdAt: new Date().toISOString()
+    });
+
+    return campaign;
+  });
+}
+
+export function updateCampaign(campaignId, patch = {}) {
+  return updateStore((data) => {
+    const campaign = data.campaigns.find((item) => item.id === campaignId);
+    if (!campaign) throw new Error('Campaign not found');
+
+    if (patch.maxParallelCalls !== undefined) {
+      campaign.maxParallelCalls = Math.max(1, Math.min(10, Number(patch.maxParallelCalls || 1)));
+    }
+    if (patch.leadStatusFilters !== undefined) {
+      campaign.leadStatusFilters = Array.isArray(patch.leadStatusFilters)
+        ? patch.leadStatusFilters.map((value) => String(value).trim()).filter(Boolean)
+        : [];
+    }
+    if (patch.callerIdNumber !== undefined) {
+      campaign.callerIdNumber = String(patch.callerIdNumber || '').trim();
+      campaign.callerIdNumbers = campaign.callerIdNumber ? [campaign.callerIdNumber] : [];
+    }
+    if (patch.name !== undefined && String(patch.name).trim()) {
+      campaign.name = String(patch.name).trim();
+    }
+    campaign.updatedAt = new Date().toISOString();
+    campaign.queueIdleAt = '';
+
+    data.events.unshift({
+      id: randomUUID(),
+      type: 'campaign_updated',
+      message: `Updated PowerList ${campaign.name}`,
+      details: {
+        campaignId: campaign.id,
+        maxParallelCalls: campaign.maxParallelCalls,
+        leadStatusFilters: campaign.leadStatusFilters,
+        callerIdNumber: campaign.callerIdNumber
+      },
+      createdAt: campaign.updatedAt
     });
 
     return campaign;
@@ -376,6 +435,10 @@ export function createAgentInvite(input, publicBaseUrl) {
       hubspotOwnerId: owner?.hubspotOwnerId || String(input.hubspotOwnerId || ''),
       status: 'invited',
       extensionStatus: 'not_connected',
+      callerIdNumber: String(input.callerIdNumber || '').trim(),
+      plivoEndpointUsername: String(input.plivoEndpointUsername || '').trim(),
+      plivoEndpointPassword: String(input.plivoEndpointPassword || ''),
+      plivoDialTarget: String(input.plivoDialTarget || '').trim(),
       apiToken: '',
       invitedAt: now,
       acceptedAt: '',
@@ -389,6 +452,10 @@ export function createAgentInvite(input, publicBaseUrl) {
       email,
       ownerId: owner?.id || agent.ownerId || '',
       hubspotOwnerId: owner?.hubspotOwnerId || agent.hubspotOwnerId || String(input.hubspotOwnerId || ''),
+      callerIdNumber: String(input.callerIdNumber || agent.callerIdNumber || '').trim(),
+      plivoEndpointUsername: String(input.plivoEndpointUsername || agent.plivoEndpointUsername || '').trim(),
+      plivoEndpointPassword: String(input.plivoEndpointPassword || agent.plivoEndpointPassword || ''),
+      plivoDialTarget: String(input.plivoDialTarget || agent.plivoDialTarget || '').trim(),
       status: agent.status === 'active' ? 'active' : 'invited',
       invitedAt: now,
       updatedAt: now
@@ -528,6 +595,29 @@ export function disconnectAgent(agentId, reason = 'manual_disconnect') {
       message: `${agent.name} disconnected`,
       details: { agentId: agent.id, email: agent.email, reason },
       createdAt: now
+    });
+    return agent;
+  });
+}
+
+export function deleteAgent(agentId) {
+  return updateStore((data) => {
+    const agent = data.agents.find((item) => item.id === agentId);
+    if (!agent) throw new Error('Agent not found');
+
+    data.agents = data.agents.filter((item) => item.id !== agentId);
+    data.agentInvites = data.agentInvites.filter((invite) => invite.agentId !== agentId);
+    data.events.unshift({
+      id: randomUUID(),
+      type: 'agent_deleted',
+      message: `Deleted agent ${agent.name}`,
+      details: {
+        agentId,
+        email: agent.email,
+        ownerId: agent.ownerId,
+        hubspotOwnerId: agent.hubspotOwnerId
+      },
+      createdAt: new Date().toISOString()
     });
     return agent;
   });

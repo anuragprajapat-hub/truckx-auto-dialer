@@ -1,5 +1,5 @@
 import { config } from './config.js';
-import { evaluateLeadForDial } from './compliance.js';
+import { evaluateLeadForDial, matchesCampaignLeadStatus } from './compliance.js';
 import {
   addCall,
   addEvent,
@@ -298,23 +298,13 @@ export class DialerEngine {
       const leads = fresh.leads
         .filter((lead) => lead.ownerId === campaign.ownerId)
         .filter((lead) => matchesCampaignTimeZone(lead, campaign))
+        .filter((lead) => matchesCampaignLeadStatus(lead, campaign))
         .filter((lead) => !activeLeadIds.has(lead.id))
         .filter((lead) => !campaignLeadIds.has(lead.id))
         .filter((lead) => evaluateLeadForDial(lead, campaign, { dncNumbers }).allowed)
         .slice(0, openSlots);
 
-      if (!leads.length && activeCalls.length === 0) {
-        const anyCandidate = fresh.leads.some((lead) => (
-          lead.ownerId === campaign.ownerId
-          && matchesCampaignTimeZone(lead, campaign)
-          && !campaignLeadIds.has(lead.id)
-        ));
-        if (!anyCandidate) {
-          await this.stopCampaign(campaign.id, 'complete');
-          addEvent('campaign_complete', `Campaign ${campaign.name} completed`, { campaignId: campaign.id });
-        }
-        continue;
-      }
+      if (!leads.length && activeCalls.length === 0) continue;
 
       for (const lead of leads) {
         await this.startCall(campaign, lead);
@@ -403,7 +393,14 @@ export class DialerEngine {
     };
 
     try {
-      const callerIdNumber = selectCallerIdNumber(dialLead, campaign, attempt);
+      const agent = data.agents.find((item) => (
+        item.ownerId === campaign.ownerId
+        || String(item.hubspotOwnerId || '') === String(campaign.hubspotOwnerId || '')
+      ));
+      const callerIdNumber = selectCallerIdNumber(dialLead, {
+        ...campaign,
+        callerIdNumber: campaign.callerIdNumber || agent?.callerIdNumber || ''
+      }, attempt);
       const providerCall = await this.voiceProvider.createOutboundCall({
         lead: dialLead,
         campaign,
@@ -432,7 +429,14 @@ export class DialerEngine {
         leadId: lead.id,
         leadName: lead.name,
         leadPhone: allowed.phone,
+        leadEmail: lead.email || '',
+        leadCompany: lead.company || '',
+        leadStatusAtDial: lead.status || '',
         ownerId: campaign.ownerId,
+        agentId: agent?.id || '',
+        agentName: agent?.name || '',
+        agentEmail: agent?.email || '',
+        hubspotOwnerId: campaign.hubspotOwnerId || agent?.hubspotOwnerId || '',
         attempt,
         status: providerCall.status || 'dialing',
         provider: providerCall.provider,
@@ -661,7 +665,7 @@ export class DialerEngine {
 
     const campaign = getStore().campaigns.find((item) => item.id === session.campaignId);
     if (campaign && ['running', 'connected'].includes(campaign.status)) {
-      await this.stopCampaign(campaign.id, 'stopped', { skipProviderCallId: providerCallId });
+      await this.stopCampaign(campaign.id, 'paused', { skipProviderCallId: providerCallId });
     }
 
     addEvent('agent_session_ended', `Agent session ended for ${campaign?.name || session.campaignId}`, {
@@ -672,6 +676,40 @@ export class DialerEngine {
     });
 
     return session;
+  }
+
+  async hangupCustomerCall(callId) {
+    const data = getStore();
+    const call = data.calls.find((item) => item.id === callId);
+    if (!call) throw new Error('Call not found');
+    if (!ACTIVE_STATUSES.has(call.status)) {
+      return { call, alreadyEnded: true };
+    }
+
+    try {
+      if (typeof this.voiceProvider.cancelOutboundCall === 'function') {
+        await this.voiceProvider.cancelOutboundCall(call);
+      }
+    } catch (error) {
+      addEvent('agent_hangup_provider_failed', error.message, {
+        campaignId: call.campaignId,
+        callId: call.id
+      });
+    }
+
+    const latest = getStore().calls.find((item) => item.id === call.id);
+    if (latest?.completedAt) return { call: latest, alreadyEnded: true };
+
+    const completed = await this.completeCall(latest, 'live_answer', {
+      source: 'agent_hangup',
+      HangupSource: 'agent'
+    });
+    addEvent('agent_hung_up_customer', `Agent ended call with ${call.leadName}`, {
+      campaignId: call.campaignId,
+      callId: call.id,
+      leadId: call.leadId
+    });
+    return { call: completed };
   }
 
   async pauseCampaignForLiveAnswer(answeredCall) {
@@ -832,6 +870,7 @@ export class DialerEngine {
     const leads = data.leads
       .filter((lead) => lead.ownerId === campaign.ownerId)
       .filter((lead) => matchesCampaignTimeZone(lead, campaign))
+      .filter((lead) => matchesCampaignLeadStatus(lead, campaign))
       .map((lead) => ({
         ...lead,
         dialCheck: evaluateLeadForDial(lead, campaign, {

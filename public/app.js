@@ -49,6 +49,9 @@ const elements = {
   startButton: document.querySelector('#startButton'),
   stopButton: document.querySelector('#stopButton'),
   deleteCampaignButton: document.querySelector('#deleteCampaignButton'),
+  updateCampaignButton: document.querySelector('#updateCampaignButton'),
+  selectedCampaignLines: document.querySelector('#selectedCampaignLines'),
+  selectedCampaignCallerId: document.querySelector('#selectedCampaignCallerId'),
   resetProviderErrorsButton: document.querySelector('#resetProviderErrorsButton'),
   syncHubSpotButton: document.querySelector('#syncHubSpotButton')
 };
@@ -164,7 +167,12 @@ function leadZone(lead) {
 function leadMatchesCampaign(lead, campaign) {
   const target = campaignTarget(campaign);
   const zone = leadZone(lead);
-  return target === 'ALL' || zone === target || zone === 'UNASSIGNED';
+  const zoneMatches = target === 'ALL' || zone === target || zone === 'UNASSIGNED';
+  const filters = Array.isArray(campaign?.leadStatusFilters)
+    ? campaign.leadStatusFilters.map((value) => String(value).trim().toLowerCase()).filter(Boolean)
+    : [];
+  const statusMatches = !filters.length || filters.includes(String(lead.status || '').trim().toLowerCase());
+  return zoneMatches && statusMatches;
 }
 
 function queueSummary(leads) {
@@ -460,10 +468,13 @@ function renderCampaigns() {
     .map((campaign) => {
       const owner = state.owners.find((item) => item.id === campaign.ownerId);
       const active = campaign.id === selectedCampaignId ? 'active' : '';
+      const statusFilter = campaign.leadStatusFilters?.length
+        ? ` | ${campaign.leadStatusFilters.map(leadStatusLabel).join(', ')}`
+        : '';
       return `
         <button class="campaign-item ${active}" data-campaign-id="${escapeHtml(campaign.id)}">
           <strong>${escapeHtml(campaign.name)}</strong>
-          <span>${escapeHtml(owner?.name || 'Unknown owner')} | ${campaignTarget(campaign)} | ${campaign.maxParallelCalls} lines | ${campaign.status}</span>
+          <span>${escapeHtml(owner?.name || 'Unknown owner')} | ${campaignTarget(campaign)} | ${campaign.maxParallelCalls} lines | ${campaign.status}${escapeHtml(statusFilter)}</span>
         </button>
       `;
     })
@@ -487,6 +498,9 @@ function renderSelectedCampaign() {
     elements.startButton.disabled = true;
     elements.stopButton.disabled = true;
     elements.deleteCampaignButton.disabled = true;
+    elements.updateCampaignButton.disabled = true;
+    elements.selectedCampaignLines.disabled = true;
+    elements.selectedCampaignCallerId.disabled = true;
     elements.syncHubSpotButton.disabled = true;
     elements.resetProviderErrorsButton.disabled = true;
     return;
@@ -502,6 +516,11 @@ function renderSelectedCampaign() {
   elements.startButton.disabled = ['running', 'connected'].includes(campaign.status) || summary.ready === 0;
   elements.stopButton.disabled = !['running', 'connected', 'paused'].includes(campaign.status);
   elements.deleteCampaignButton.disabled = false;
+  elements.updateCampaignButton.disabled = false;
+  elements.selectedCampaignLines.disabled = false;
+  elements.selectedCampaignCallerId.disabled = false;
+  elements.selectedCampaignLines.value = campaign.maxParallelCalls || 1;
+  elements.selectedCampaignCallerId.value = campaign.callerIdNumber || campaign.callerIdNumbers?.[0] || '';
   elements.syncHubSpotButton.disabled = state.settings.leadSource !== 'hubspot';
   elements.resetProviderErrorsButton.disabled = !campaignLeads.some((lead) => lead.status === 'provider_error');
   renderQueueHealth(campaignLeads, campaign);
@@ -763,15 +782,22 @@ function renderAgents() {
               <td>${escapeHtml(agent.name)}</td>
               <td>${escapeHtml(agent.email)}</td>
               <td>${escapeHtml(agent.hubspotOwnerId || agent.ownerId || '')}</td>
+              <td>${escapeHtml(agent.callerIdNumber || 'Not assigned')}</td>
+              <td>${agent.plivoEndpointConfigured ? 'Per-agent' : 'Global fallback'}</td>
               <td>${statusPill(agent.status || 'invited')}</td>
               <td>${statusPill(accessStatus)}</td>
               <td>${inviteCell}</td>
-              <td>${actionCell}</td>
+              <td>
+                <div class="agent-actions">
+                  ${actionCell}
+                  <button class="danger-outline-button" type="button" data-delete-agent="${escapeHtml(agent.id)}">Delete</button>
+                </div>
+              </td>
             </tr>
           `;
         })
         .join('')
-    : '<tr><td colspan="7">No invited agents yet.</td></tr>';
+    : '<tr><td colspan="9">No invited agents yet.</td></tr>';
 
   document.querySelectorAll('[data-copy-invite]').forEach((button) => {
     button.addEventListener('click', async () => {
@@ -790,6 +816,26 @@ function renderAgents() {
         await loadState();
       } catch (error) {
         setNotice(`Disconnect failed: ${error.message}`, 'error');
+      } finally {
+        button.disabled = false;
+      }
+    });
+  });
+
+  document.querySelectorAll('[data-delete-agent]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const agent = agents.find((item) => item.id === button.dataset.deleteAgent);
+      const confirmed = window.confirm(
+        `Delete ${agent?.name || 'this agent'}? Their login link will stop working. Existing call history will be kept.`
+      );
+      if (!confirmed) return;
+      button.disabled = true;
+      try {
+        await api(`/api/admin/agents/${encodeURIComponent(button.dataset.deleteAgent)}`, { method: 'DELETE' });
+        setNotice('Agent deleted. You can invite the same email again later.', 'success');
+        await loadState();
+      } catch (error) {
+        setNotice(`Delete failed: ${error.message}`, 'error');
       } finally {
         button.disabled = false;
       }
@@ -963,6 +1009,24 @@ elements.deleteCampaignButton.addEventListener('click', async () => {
     await loadState();
   } catch (error) {
     setNotice(`Delete failed: ${error.message}`, 'error');
+  }
+});
+
+elements.updateCampaignButton.addEventListener('click', async () => {
+  const campaign = selectedCampaign();
+  if (!campaign) return;
+  try {
+    await api(`/api/campaigns/${campaign.id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        maxParallelCalls: Number(elements.selectedCampaignLines.value || 1),
+        callerIdNumber: elements.selectedCampaignCallerId.value
+      })
+    });
+    setNotice('PowerList lines and caller ID updated.', 'success');
+    await loadState();
+  } catch (error) {
+    setNotice(`PowerList update failed: ${error.message}`, 'error');
   }
 });
 

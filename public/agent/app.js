@@ -13,6 +13,9 @@ let softphoneLoginWaiter = null;
 let softphoneMode = 'phone';
 let softphoneConfigCache = null;
 let activeDispositionCallId = '';
+let activeConnectedCallId = '';
+let lastNotifiedCallId = '';
+let notificationAudioContext = null;
 let softphoneStatus = {
   kind: 'idle',
   title: 'Browser audio not connected',
@@ -43,6 +46,7 @@ const elements = {
   currentCallCompany: document.querySelector('#currentCallCompany'),
   currentCallAttempt: document.querySelector('#currentCallAttempt'),
   campaignSelect: document.querySelector('#campaignSelect'),
+  leadStatusFilter: document.querySelector('#leadStatusFilter'),
   campaignMeta: document.querySelector('#campaignMeta'),
   campaignStatus: document.querySelector('#campaignStatus'),
   startButton: document.querySelector('#startButton'),
@@ -57,7 +61,15 @@ const elements = {
   leadRows: document.querySelector('#leadRows'),
   activeCalls: document.querySelector('#activeCalls'),
   recentCalls: document.querySelector('#recentCalls'),
-  abandonedCalls: document.querySelector('#abandonedCalls')
+  abandonedCalls: document.querySelector('#abandonedCalls'),
+  connectedCallPanel: document.querySelector('#connectedCallPanel'),
+  connectedCallName: document.querySelector('#connectedCallName'),
+  connectedCallCompany: document.querySelector('#connectedCallCompany'),
+  connectedCallPhone: document.querySelector('#connectedCallPhone'),
+  connectedCallEmail: document.querySelector('#connectedCallEmail'),
+  connectedCallStatus: document.querySelector('#connectedCallStatus'),
+  connectedCallCampaign: document.querySelector('#connectedCallCampaign'),
+  hangupCallButton: document.querySelector('#hangupCallButton')
 };
 
 function escapeHtml(value) {
@@ -114,6 +126,76 @@ function renderDispositionOptions() {
   elements.dispositionStatus.dataset.optionsKey = key;
   if (options.some((option) => String(option.value) === currentValue)) {
     elements.dispositionStatus.value = currentValue;
+  }
+}
+
+function renderLeadStatusFilter(campaign = selectedCampaign()) {
+  if (!elements.leadStatusFilter) return;
+  const options = leadStatusOptions();
+  const selected = String(campaign?.leadStatusFilters?.[0] || '');
+  const key = `${options.map((option) => `${option.value}:${option.label}`).join('|')}::${selected}`;
+  if (elements.leadStatusFilter.dataset.optionsKey === key) return;
+
+  elements.leadStatusFilter.innerHTML = [
+    '<option value="">Default dialing queue</option>',
+    ...options.map((option) => `<option value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</option>`)
+  ].join('');
+  elements.leadStatusFilter.value = selected;
+  elements.leadStatusFilter.disabled = !campaign;
+  elements.leadStatusFilter.dataset.optionsKey = key;
+}
+
+function requestConnectedCallNotifications() {
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission().catch(() => {});
+  }
+
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) return;
+  notificationAudioContext ||= new AudioContextClass();
+  notificationAudioContext.resume().catch(() => {});
+}
+
+function playConnectedSound() {
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) return;
+
+  try {
+    notificationAudioContext ||= new AudioContextClass();
+    const context = notificationAudioContext;
+    context.resume().catch(() => {});
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(740, context.currentTime);
+    oscillator.frequency.setValueAtTime(920, context.currentTime + 0.12);
+    gain.gain.setValueAtTime(0.0001, context.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.18, context.currentTime + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.34);
+    oscillator.connect(gain);
+    gain.connect(context.destination);
+    oscillator.start();
+    oscillator.stop(context.currentTime + 0.36);
+  } catch {
+    // The visual connected-call alert remains available when audio is blocked.
+  }
+}
+
+function notifyConnectedCall(call, lead) {
+  if (!call?.id || lastNotifiedCallId === call.id) return;
+  lastNotifiedCallId = call.id;
+  playConnectedSound();
+
+  if ('Notification' in window && Notification.permission === 'granted') {
+    const notification = new Notification('Customer connected', {
+      body: `${call.leadName || lead?.name || 'HubSpot contact'} | ${call.leadPhone || lead?.phone || ''}`,
+      tag: `truckx-connected-${call.id}`,
+      requireInteraction: true
+    });
+    notification.onclick = () => {
+      window.focus();
+      notification.close();
+    };
   }
 }
 
@@ -362,7 +444,7 @@ async function connectBrowserSoftphone(campaign) {
   const config = await softphoneConfig();
   if (config.mode !== 'browser') return false;
   if (!config.enabled) {
-    throw new Error('Browser softphone is not configured yet. Ask admin to add PLIVO_BROWSER_USERNAME and PLIVO_BROWSER_PASSWORD in Render.');
+    throw new Error('Browser softphone is not configured for this agent. Ask admin to add this agent\'s Plivo endpoint username and password.');
   }
 
   await loginSoftphone(config);
@@ -516,6 +598,33 @@ function renderCurrentCall() {
     company: campaign?.status || '-',
     attempt: campaign ? `${campaign.maxParallelCalls} lines` : '-'
   });
+}
+
+function renderConnectedCall() {
+  if (!elements.connectedCallPanel) return;
+  const campaign = selectedCampaign();
+  const call = callsForSelectedCampaign().find((item) => item.status === 'in_progress');
+
+  if (!call) {
+    elements.connectedCallPanel.hidden = true;
+    elements.connectedCallPanel.dataset.callId = '';
+    activeConnectedCallId = '';
+    return;
+  }
+
+  const lead = leadForCall(call);
+  activeConnectedCallId = call.id;
+  elements.connectedCallPanel.hidden = false;
+  elements.connectedCallPanel.dataset.callId = call.id;
+  elements.connectedCallName.textContent = call.leadName || lead?.name || 'HubSpot contact';
+  elements.connectedCallCompany.textContent = call.leadCompany || lead?.company || '-';
+  elements.connectedCallPhone.textContent = call.leadPhone || lead?.phone || '-';
+  elements.connectedCallEmail.textContent = call.leadEmail || lead?.email || '-';
+  elements.connectedCallStatus.textContent = leadStatusLabel(call.leadStatusAtDial || lead?.status || 'connected');
+  elements.connectedCallCampaign.textContent = campaign?.name || '-';
+  elements.hangupCallButton.disabled = false;
+  elements.hangupCallButton.textContent = 'Hang up customer';
+  notifyConnectedCall(call, lead);
 }
 
 function needsBrowserAudio(campaign) {
@@ -707,6 +816,7 @@ function renderCampaigns() {
     elements.campaignStatus = document.querySelector('#campaignStatus');
     elements.startButton.disabled = true;
     elements.stopButton.disabled = true;
+    renderLeadStatusFilter(null);
     return;
   }
 
@@ -726,6 +836,7 @@ function renderCampaigns() {
     : softphoneMode === 'browser' ? 'Start Audio' : 'Start';
   elements.startButton.disabled = connectAudio || canReconnectAudio ? false : ['running', 'connected'].includes(current.status);
   elements.stopButton.disabled = !['running', 'connected', 'paused'].includes(current.status);
+  renderLeadStatusFilter(current);
   renderSoftphoneStatus(current);
 }
 
@@ -827,6 +938,7 @@ function render() {
   renderStats();
   renderCampaigns();
   renderCurrentCall();
+  renderConnectedCall();
   renderQueueHealth();
   renderLeads();
   renderDisposition();
@@ -864,9 +976,31 @@ elements.campaignSelect.addEventListener('change', async () => {
   await loadState();
 });
 
+elements.leadStatusFilter?.addEventListener('change', async () => {
+  const campaign = selectedCampaign();
+  if (!campaign) return;
+  elements.leadStatusFilter.disabled = true;
+  try {
+    const value = String(elements.leadStatusFilter.value || '').trim();
+    await api(`/api/campaigns/${campaign.id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        leadStatusFilters: value ? [value] : []
+      })
+    });
+    setNotice(value ? `Filter applied: ${leadStatusLabel(value)}.` : 'Using the default new, retry, and no-answer queue.', 'success');
+    await loadState();
+  } catch (error) {
+    setNotice(error.message, 'error');
+  } finally {
+    elements.leadStatusFilter.disabled = false;
+  }
+});
+
 elements.startButton.addEventListener('click', async () => {
   const campaign = selectedCampaign();
   if (!campaign) return;
+  requestConnectedCallNotifications();
   let startedCampaign = null;
   try {
     const wasWaitingForBrowserAudio = needsBrowserAudio(campaign);
@@ -887,6 +1021,22 @@ elements.startButton.addEventListener('click', async () => {
     }
     setNotice(error.message, 'error');
     await loadState().catch(() => {});
+  }
+});
+
+elements.hangupCallButton?.addEventListener('click', async () => {
+  const callId = elements.connectedCallPanel.dataset.callId || activeConnectedCallId;
+  if (!callId) return;
+  elements.hangupCallButton.disabled = true;
+  elements.hangupCallButton.textContent = 'Ending call...';
+  try {
+    await api(`/api/calls/${callId}/hangup`, { method: 'POST' });
+    setNotice('Customer call ended. Select the call outcome to continue dialing.', 'success');
+    await loadState();
+  } catch (error) {
+    setNotice(error.message, 'error');
+    elements.hangupCallButton.disabled = false;
+    elements.hangupCallButton.textContent = 'Hang up customer';
   }
 });
 

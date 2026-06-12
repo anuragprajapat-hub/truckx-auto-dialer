@@ -16,6 +16,7 @@ import {
   closeStore,
   createAgentInvite,
   createCampaign,
+  deleteAgent,
   deleteCampaign,
   disconnectAgent,
   getAgentInvite,
@@ -26,6 +27,7 @@ import {
   storeBackend,
   touchAgent,
   updateAgentInviteEmailStatus,
+  updateCampaign,
   updateLead
 } from './src/store.js';
 
@@ -134,6 +136,7 @@ function setupStatus() {
   const carrierReady = config.voiceProvider === 'mock'
     || (config.voiceProvider === 'twilio' && Boolean(config.twilio.accountSid && config.twilio.authToken))
     || (config.voiceProvider === 'plivo' && Boolean(config.plivo.authId && config.plivo.authToken));
+  const browserEndpoints = browserEndpointStatus();
 
   return {
     appName: 'TruckX Auto Dialer',
@@ -157,10 +160,10 @@ function setupStatus() {
       {
         id: 'agent_connection',
         label: 'Agent connection',
-        ok: config.agentConnectionMode !== 'browser' || Boolean(config.plivo.browserUsername && config.plivo.browserPassword),
+        ok: config.agentConnectionMode !== 'browser' || browserEndpoints.configured,
         value: config.agentConnectionMode,
         message: config.agentConnectionMode === 'browser'
-          ? (config.plivo.browserUsername && config.plivo.browserPassword ? 'Browser softphone is configured' : 'Set PLIVO_BROWSER_USERNAME and PLIVO_BROWSER_PASSWORD')
+          ? browserEndpoints.message
           : 'Agent phone call mode'
       },
       {
@@ -292,7 +295,10 @@ function requireAdmin(request, response) {
 }
 
 function safeAgents(agents = []) {
-  return agents.map(({ apiToken, ...agent }) => agent);
+  return agents.map(({ apiToken, plivoEndpointPassword, ...agent }) => ({
+    ...agent,
+    plivoEndpointConfigured: Boolean(agent.plivoEndpointUsername && plivoEndpointPassword)
+  }));
 }
 
 function maskedValue(value) {
@@ -300,6 +306,31 @@ function maskedValue(value) {
   if (!text) return '';
   if (text.length <= 8) return 'configured';
   return `${text.slice(0, 6)}...${text.slice(-4)}`;
+}
+
+function browserEndpointStatus() {
+  const globalConfigured = Boolean(config.plivo.browserUsername && config.plivo.browserPassword);
+  const agents = getStore().agents || [];
+  const perAgentCount = agents.filter((agent) => (
+    agent.plivoEndpointUsername && agent.plivoEndpointPassword
+  )).length;
+
+  return {
+    configured: globalConfigured || perAgentCount > 0,
+    globalConfigured,
+    perAgentCount,
+    message: perAgentCount
+      ? `${perAgentCount} per-agent Plivo endpoint(s) configured${globalConfigured ? ' with global fallback' : ''}`
+      : (globalConfigured ? 'Global browser softphone fallback is configured' : 'Add Plivo endpoint credentials to each agent')
+  };
+}
+
+function normalizedEndpointUsername(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/^sip:/, '')
+    .split('@')[0];
 }
 
 async function leadStatusOptionsForState() {
@@ -378,7 +409,7 @@ function conferenceXml(conferenceName, attrs = {}) {
 }
 
 function runningBrowserSessionForAgent(body = {}) {
-  const endpointUsername = String(body.From || body.CallerName || '').replace(/^sip:/, '').split('@')[0].trim().toLowerCase();
+  const endpointUsername = normalizedEndpointUsername(body.From || body.CallerName);
   const data = getStore();
   const requestedCampaignId = bodyValue(body, ['X-PH-CampaignId', 'X-PH-CampaignID', 'X_PH_CampaignId', 'XPHCampaignId']);
   const requestedSessionId = bodyValue(body, ['X-PH-SessionId', 'X-PH-SessionID', 'X_PH_SessionId', 'XPHSessionId']);
@@ -397,7 +428,7 @@ function runningBrowserSessionForAgent(body = {}) {
 
   const agents = data.agents || [];
   const matchedAgent = agents.find((agent) => {
-    const configured = String(agent.plivoEndpointUsername || agent.softphoneUsername || '').toLowerCase();
+    const configured = normalizedEndpointUsername(agent.plivoEndpointUsername || agent.softphoneUsername);
     return configured && endpointUsername && configured === endpointUsername;
   });
 
@@ -477,14 +508,16 @@ function campaignIdFromPath(pathname, action) {
 
 async function handleApi(request, response, url) {
   if (request.method === 'GET' && url.pathname === '/api/health') {
+    const browserEndpoints = browserEndpointStatus();
     sendJson(response, {
       ok: true,
       appName: 'TruckX Auto Dialer',
       provider: config.voiceProvider,
       providerAccount: config.voiceProvider === 'plivo' ? maskedValue(config.plivo.authId) : '',
       agentConnectionMode: config.agentConnectionMode,
-      browserSoftphoneConfigured: Boolean(config.plivo.browserUsername && config.plivo.browserPassword),
+      browserSoftphoneConfigured: browserEndpoints.configured,
       browserUsername: maskedValue(config.plivo.browserUsername),
+      perAgentBrowserEndpoints: browserEndpoints.perAgentCount,
       leadSource: config.leadSource,
       storage: storeBackend(),
       time: new Date().toISOString()
@@ -599,6 +632,32 @@ async function handleApi(request, response, url) {
     if (requireAdmin(request, response)) return true;
 
     const body = await parseBody(request);
+    if (body.callerIdNumber) {
+      const callerIdNumber = normalizeUsPhone(body.callerIdNumber);
+      if (!callerIdNumber) {
+        sendJson(response, { error: 'Enter a valid US caller ID number' }, 400);
+        return true;
+      }
+      body.callerIdNumber = callerIdNumber;
+    }
+    const endpointUsername = normalizedEndpointUsername(body.plivoEndpointUsername);
+    const endpointPassword = String(body.plivoEndpointPassword || '');
+    if (Boolean(endpointUsername) !== Boolean(endpointPassword)) {
+      sendJson(response, { error: 'Enter both the Plivo endpoint username and password, or leave both blank' }, 400);
+      return true;
+    }
+    if (endpointUsername) {
+      const email = String(body.email || '').trim().toLowerCase();
+      const duplicateAgent = (getStore().agents || []).find((agent) => (
+        String(agent.email || '').trim().toLowerCase() !== email
+        && normalizedEndpointUsername(agent.plivoEndpointUsername) === endpointUsername
+      ));
+      if (duplicateAgent) {
+        sendJson(response, { error: `That Plivo endpoint is already assigned to ${duplicateAgent.name}` }, 409);
+        return true;
+      }
+      body.plivoEndpointUsername = String(body.plivoEndpointUsername || '').trim();
+    }
     const result = createAgentInvite(body, config.publicBaseUrl);
 
     try {
@@ -618,7 +677,31 @@ async function handleApi(request, response, url) {
       result.invite.emailError = error.message;
     }
 
-    sendJson(response, result, 201);
+    sendJson(response, {
+      ...result,
+      agent: safeAgents([result.agent])[0]
+    }, 201);
+    return true;
+  }
+
+  const deleteAgentMatch = url.pathname.match(/^\/api\/admin\/agents\/([^/]+)$/);
+  if (request.method === 'DELETE' && deleteAgentMatch) {
+    if (requireAdmin(request, response)) return true;
+    const data = getStore();
+    const agent = data.agents.find((item) => item.id === deleteAgentMatch[1]);
+    if (!agent) {
+      sendJson(response, { error: 'Agent not found' }, 404);
+      return true;
+    }
+    const activeCampaigns = data.campaigns.filter((campaign) => (
+      campaign.ownerId === agent.ownerId
+      && ['running', 'connected'].includes(campaign.status)
+    ));
+    for (const campaign of activeCampaigns) {
+      await dialerEngine.stopCampaign(campaign.id, 'stopped');
+    }
+    const deleted = deleteAgent(agent.id);
+    sendJson(response, { deleted: true, agent: { id: deleted.id, name: deleted.name, email: deleted.email } });
     return true;
   }
 
@@ -674,14 +757,20 @@ async function handleApi(request, response, url) {
       return true;
     }
 
+    const data = getStore();
+    const agent = data.agents.find((item) => item.id === request.user.agentId);
+    const username = agent?.plivoEndpointUsername || config.plivo.browserUsername;
+    const password = agent?.plivoEndpointPassword || config.plivo.browserPassword;
+    const dialTarget = agent?.plivoDialTarget || config.plivo.browserDialTarget;
     sendJson(response, {
       mode: config.agentConnectionMode,
       enabled: config.voiceProvider === 'plivo'
         && config.agentConnectionMode === 'browser'
-        && Boolean(config.plivo.browserUsername && config.plivo.browserPassword),
-      username: config.plivo.browserUsername,
-      password: config.plivo.browserPassword,
-      dialTarget: config.plivo.browserDialTarget
+        && Boolean(username && password),
+      username,
+      password,
+      dialTarget,
+      callerIdNumber: agent?.callerIdNumber || config.callerIdNumber
     });
     return true;
   }
@@ -727,6 +816,32 @@ async function handleApi(request, response, url) {
     const body = await parseBody(request);
     const campaign = createCampaign(body);
     sendJson(response, campaign, 201);
+    return true;
+  }
+
+  const updateCampaignMatch = url.pathname.match(/^\/api\/campaigns\/([^/]+)$/);
+  if (request.method === 'PATCH' && updateCampaignMatch) {
+    assertCampaignAccess(updateCampaignMatch[1], request.user);
+    const body = await parseBody(request);
+    const patch = request.user?.role === 'admin'
+      ? {
+          maxParallelCalls: body.maxParallelCalls,
+          leadStatusFilters: body.leadStatusFilters,
+          callerIdNumber: body.callerIdNumber
+        }
+      : {
+          leadStatusFilters: body.leadStatusFilters
+        };
+    if (patch.callerIdNumber) {
+      const callerIdNumber = normalizeUsPhone(patch.callerIdNumber);
+      if (!callerIdNumber) {
+        sendJson(response, { error: 'Enter a valid US caller ID number' }, 400);
+        return true;
+      }
+      patch.callerIdNumber = callerIdNumber;
+    }
+    sendJson(response, updateCampaign(updateCampaignMatch[1], patch));
+    dialerEngine.scheduleTick('campaign_updated');
     return true;
   }
 
@@ -791,6 +906,15 @@ async function handleApi(request, response, url) {
     const call = data.calls.find((item) => item.id === dispositionMatch[1]);
     assertCampaignAccess(call?.campaignId, request.user);
     sendJson(response, await dialerEngine.applyDisposition(dispositionMatch[1], body));
+    return true;
+  }
+
+  const hangupMatch = url.pathname.match(/^\/api\/calls\/([^/]+)\/hangup$/);
+  if (request.method === 'POST' && hangupMatch) {
+    const data = getStore();
+    const call = data.calls.find((item) => item.id === hangupMatch[1]);
+    assertCampaignAccess(call?.campaignId, request.user);
+    sendJson(response, await dialerEngine.hangupCustomerCall(hangupMatch[1]));
     return true;
   }
 

@@ -283,11 +283,13 @@ export async function createHubSpotCallLog(call, lead, outcome) {
   const startedAt = call.startedAt ? new Date(call.startedAt) : new Date();
   const completedAt = call.completedAt ? new Date(call.completedAt) : new Date();
   const durationMs = Math.max(0, completedAt.getTime() - startedAt.getTime());
+  const agentName = String(call.agentName || '').trim();
   const properties = {
     hs_timestamp: startedAt.toISOString(),
-    hs_call_title: `TruckX Auto Dialer: ${lead.name || lead.phone}`,
+    hs_call_title: `${agentName || 'TruckX Auto Dialer'}: ${lead.name || lead.phone}`,
     hs_call_body: [
       callOutcomeBody(outcome),
+      agentName ? `Agent: ${agentName}.` : '',
       call.dispositionStatus ? `Agent outcome: ${call.dispositionStatus}.` : '',
       call.dispositionNote ? `Note: ${call.dispositionNote}` : ''
     ].filter(Boolean).join(' '),
@@ -297,6 +299,10 @@ export async function createHubSpotCallLog(call, lead, outcome) {
     hs_call_to_number: call.leadPhone || lead.phone,
     hs_call_duration: String(durationMs)
   };
+
+  if (call.hubspotOwnerId) {
+    properties.hubspot_owner_id = String(call.hubspotOwnerId);
+  }
 
   if (HUBSPOT_DISPOSITIONS[outcome]) {
     properties.hs_call_disposition = HUBSPOT_DISPOSITIONS[outcome];

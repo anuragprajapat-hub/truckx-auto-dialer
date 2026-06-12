@@ -1,6 +1,9 @@
 import { config } from '../config.js';
 
 export function selectCallerIdNumber(lead, campaign, attempt = 1) {
+  const assignedCallerId = String(campaign.callerIdNumber || '').trim();
+  if (assignedCallerId) return assignedCallerId;
+
   const pool = Array.isArray(campaign.callerIdNumbers) && campaign.callerIdNumbers.length
     ? campaign.callerIdNumbers
     : config.callerIdNumbers;

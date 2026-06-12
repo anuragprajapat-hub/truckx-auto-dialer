@@ -770,6 +770,33 @@ tr:last-child td {
   max-width: 220px;
 }
 
+.inline-setting {
+  color: var(--muted);
+  display: grid;
+  font-size: 11px;
+  gap: 4px;
+  min-width: 76px;
+}
+
+.inline-setting input {
+  min-height: 40px;
+  width: 76px;
+}
+
+.caller-id-setting {
+  min-width: 158px;
+}
+
+.caller-id-setting input {
+  width: 158px;
+}
+
+.agent-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 .empty {
   color: var(--muted);
   font-size: 13px;
