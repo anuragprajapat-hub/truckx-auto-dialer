@@ -97,6 +97,12 @@ const defaultHubSpotLeadStatusValues = {
 };
 
 const plivoMachineDetection = String(process.env.PLIVO_MACHINE_DETECTION || 'hangup').trim().toLowerCase();
+const configuredCallableStatuses = listFromEnv('CALLABLE_LEAD_STATUSES').map((status) => status.toLowerCase());
+const legacyCallableStatusDefault = ['new', 'retry', 'no_answer'];
+const callableStatuses = configuredCallableStatuses.length === legacyCallableStatusDefault.length
+  && legacyCallableStatusDefault.every((status) => configuredCallableStatuses.includes(status))
+  ? []
+  : configuredCallableStatuses;
 
 export const config = {
   port: numberFromEnv('PORT', 4242),
@@ -150,6 +156,6 @@ export const config = {
     defaultCallWindowStart: process.env.DEFAULT_CALL_WINDOW_START || '09:00',
     defaultCallWindowEnd: process.env.DEFAULT_CALL_WINDOW_END || '18:00',
     maxAttemptsPerLead: numberFromEnv('MAX_ATTEMPTS_PER_LEAD', 3),
-    callableStatuses: listFromEnv('CALLABLE_LEAD_STATUSES').map((status) => status.toLowerCase())
+    callableStatuses
   }
 };
