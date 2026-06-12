@@ -48,7 +48,7 @@ username:password:role:hubspot_owner_id
 
 Use `admin` for an admin user. Use `agent` plus the HubSpot owner ID for an agent user. You can get the owner ID after clicking **Owners** in TruckX or from HubSpot owner settings/API.
 
-The newer invite flow means agents do not need manually created passwords. Keep an admin login for the portal, then invite agents from **Agents**. Invited agents activate through the Chrome extension and receive an extension token.
+The newer invite flow means agents do not need manually created passwords. Keep an admin login for the portal, then invite agents from **Agents**. Invited agents open a secure web login link in Chrome and receive a browser session token.
 
 Optional email invitation delivery:
 
@@ -67,9 +67,9 @@ Where to get it:
 
 A personal Gmail/Yahoo address should not be used as `INVITE_FROM_EMAIL`. Use a company-domain sender such as `dialer@truckx.com` or `no-reply@truckx.com` after the domain is verified. You can still make replies go to a personal or team inbox later with a reply-to setting if needed.
 
-Without these, the admin can copy the invite link from the Agents table and send it manually.
+Without these, the admin can copy the web login link from the Agents table and send it manually.
 
-If the Agents table says `RESEND_API_KEY is not configured`, that is expected until the key is added in Render. The invite still works through **Copy invite link**.
+If the Agents table says `RESEND_API_KEY is not configured`, that is expected until the key is added in Render. The invite still works through **Copy web login link**.
 
 Recommended scopes:
 

@@ -355,7 +355,7 @@ function inviteToken() {
 
 function defaultInviteUrl(token, publicBaseUrl) {
   const baseUrl = String(publicBaseUrl || '').replace(/\/$/, '');
-  return `${baseUrl || 'http://localhost:4242'}/extension/?invite=${encodeURIComponent(token)}`;
+  return `${baseUrl || 'http://localhost:4242'}/agent/?token=${encodeURIComponent(token)}`;
 }
 
 export function createAgentInvite(input, publicBaseUrl) {
@@ -375,7 +375,7 @@ export function createAgentInvite(input, publicBaseUrl) {
       ownerId: owner?.id || '',
       hubspotOwnerId: owner?.hubspotOwnerId || String(input.hubspotOwnerId || ''),
       status: 'invited',
-      extensionStatus: 'not_installed',
+      extensionStatus: 'not_connected',
       apiToken: '',
       invitedAt: now,
       acceptedAt: '',

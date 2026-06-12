@@ -181,10 +181,10 @@ function setupStatus() {
       },
       {
         id: 'email_invites',
-        label: 'Email invites',
+        label: 'Agent web invites',
         ok: Boolean(config.email.resendApiKey),
         value: config.email.resendApiKey ? 'Enabled' : 'Manual',
-        message: config.email.resendApiKey ? 'Agent invitations will be emailed' : 'Set RESEND_API_KEY or copy invite links manually'
+        message: config.email.resendApiKey ? 'Agent web login links will be emailed' : 'Copy agent web login links manually'
       },
       {
         id: 'caller_ids',

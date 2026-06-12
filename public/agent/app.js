@@ -183,7 +183,7 @@ async function exchangeInviteToken(inviteToken) {
 async function connectWithToken(rawToken) {
   const token = String(rawToken || '').trim();
   if (!token) {
-    showSetup('Setup token is required.');
+    showSetup('Login token is required. Open your web login link or paste the token from it.');
     return;
   }
   const apiToken = token.startsWith('txa_') ? token : await exchangeInviteToken(token);
@@ -209,13 +209,13 @@ function setConnectBusy(isBusy, message = '') {
 
 function setupErrorMessage(error) {
   if (error.message === 'Invite not found') {
-    return 'Invite not found. Ask admin to create a new invite and use the new setup token.';
+    return 'Invite not found. Ask admin to create a new web login link.';
   }
   if (error.message === 'Invite is no longer active') {
-    return 'This invite was already used. Ask admin for the latest setup link, or open the dialer from the connected extension.';
+    return 'This invite was already used. Ask admin for the latest web login link, or open the agent dialer from the same browser profile.';
   }
   if (error.message === 'Authentication required') {
-    return 'Agent session is not connected. Paste the latest setup token and connect again.';
+    return 'Agent session is not connected. Paste the latest login token or open your web login link again.';
   }
   return error.message;
 }
@@ -225,7 +225,7 @@ function showAgent() {
   elements.agentView.hidden = false;
 }
 
-function logout(message = 'Logged out. Paste a setup token to connect again.') {
+function logout(message = 'Logged out. Paste a login token or open your web login link to connect again.') {
   authToken = '';
   state = null;
   snapshot = null;

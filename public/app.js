@@ -324,6 +324,12 @@ function inviteEmailStatus(invite) {
   return 'manual link';
 }
 
+function agentAccessStatus(agent) {
+  return agent.extensionStatus === 'not_installed'
+    ? 'not_connected'
+    : (agent.extensionStatus || 'not_connected');
+}
+
 async function copyText(value) {
   if (!value) return;
   if (navigator.clipboard?.writeText) {
@@ -741,13 +747,14 @@ function renderAgents() {
           const inviteCell = invite?.inviteUrl
             ? `
               <div class="invite-actions">
-                <button type="button" data-copy-invite="${escapeHtml(invite.inviteUrl)}">Copy invite link</button>
+                <button type="button" data-copy-invite="${escapeHtml(invite.inviteUrl)}">Copy web login link</button>
                 <span>${escapeHtml(inviteEmailStatus(invite))}</span>
               </div>
             `
             : '<span class="muted">No invite</span>';
-          const canDisconnect = agent.extensionStatus !== 'disconnected'
-            && (agent.extensionStatus === 'connected' || agent.status === 'active' || Boolean(agent.lastSeenAt));
+          const accessStatus = agentAccessStatus(agent);
+          const canDisconnect = accessStatus !== 'disconnected'
+            && (accessStatus === 'connected' || agent.status === 'active' || Boolean(agent.lastSeenAt));
           const actionCell = canDisconnect
             ? `<button class="danger-outline-button" type="button" data-disconnect-agent="${escapeHtml(agent.id)}">Disconnect</button>`
             : '<span class="muted">No active session</span>';
@@ -757,7 +764,7 @@ function renderAgents() {
               <td>${escapeHtml(agent.email)}</td>
               <td>${escapeHtml(agent.hubspotOwnerId || agent.ownerId || '')}</td>
               <td>${statusPill(agent.status || 'invited')}</td>
-              <td>${statusPill(agent.extensionStatus || 'not_installed')}</td>
+              <td>${statusPill(accessStatus)}</td>
               <td>${inviteCell}</td>
               <td>${actionCell}</td>
             </tr>
@@ -769,7 +776,7 @@ function renderAgents() {
   document.querySelectorAll('[data-copy-invite]').forEach((button) => {
     button.addEventListener('click', async () => {
       await copyText(button.dataset.copyInvite);
-      setNotice('Invite link copied.', 'success');
+      setNotice('Web login link copied. Send it to the agent and ask them to open it in Chrome.', 'success');
     });
   });
 
@@ -852,12 +859,12 @@ elements.agentInviteForm.addEventListener('submit', async (event) => {
       body: JSON.stringify(Object.fromEntries(form))
     });
     elements.agentInviteForm.reset();
-    setNotice(
-      result.invite?.emailSent
-        ? `Invitation emailed to ${result.agent.email}.`
-        : `Invitation created for ${result.agent.email}. Copy the invite link from the Agents table.`,
-      result.invite?.emailSent ? 'success' : 'info'
-    );
+      setNotice(
+        result.invite?.emailSent
+          ? `Invitation emailed to ${result.agent.email}.`
+          : `Invitation created for ${result.agent.email}. Copy the web login link from the Agents table.`,
+        result.invite?.emailSent ? 'success' : 'info'
+      );
     await loadState();
     setView('agents');
   } catch (error) {

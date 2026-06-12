@@ -19,7 +19,7 @@ export async function sendAgentInviteEmail({ agent, invite }) {
         `Hi ${agent.name || 'there'},`,
         '',
         'You have been invited to TruckX Auto Dialer.',
-        `Open this link to set up your extension: ${invite.inviteUrl}`,
+        `Open this link in Chrome to access your agent dialer: ${invite.inviteUrl}`,
         '',
         'If you were not expecting this invitation, ignore this email.'
       ].join('\n')

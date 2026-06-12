@@ -13,6 +13,10 @@ const setupValues = document.querySelector('#setupValues');
 const appUrl = document.querySelector('#appUrl');
 const setupToken = document.querySelector('#setupToken');
 
+if (inviteToken) {
+  window.location.replace(`/agent/?token=${encodeURIComponent(inviteToken)}`);
+}
+
 async function lookupInvite() {
   if (!inviteToken) {
     statusText.textContent = 'This setup link is missing an invite token.';
@@ -28,7 +32,7 @@ async function lookupInvite() {
 
   const statusMessages = {
     pending: 'Your invitation is ready.',
-    accepted: 'This agent is already activated. You can use the same setup token to reconnect.',
+    accepted: 'This agent is already activated. You can use the same web login link to reconnect.',
     expired: 'This invitation has expired. Ask your admin for a new invite.'
   };
   statusText.textContent = statusMessages[body.invite.status] || `This invitation is ${body.invite.status}.`;
@@ -46,7 +50,7 @@ async function lookupInvite() {
 
 copyInviteButton.addEventListener('click', async () => {
   await navigator.clipboard.writeText(inviteToken);
-  copyInviteButton.textContent = 'Setup token copied';
+  copyInviteButton.textContent = 'Login token copied';
 });
 
 copyAppUrlButton.addEventListener('click', async () => {
@@ -54,6 +58,8 @@ copyAppUrlButton.addEventListener('click', async () => {
   copyAppUrlButton.textContent = 'App URL copied';
 });
 
-lookupInvite().catch((error) => {
-  statusText.textContent = error.message;
-});
+if (!inviteToken) {
+  lookupInvite().catch((error) => {
+    statusText.textContent = error.message;
+  });
+}

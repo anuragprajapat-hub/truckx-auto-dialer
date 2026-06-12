@@ -15,9 +15,9 @@ This is a standalone autodialer prototype for a sales team calling US numbers. I
 - Adds an admin-style portal with PowerLists, Reports, Call History, Agents, Live, and Setup sections.
 - Adds an agent-only dialer portal where agents can use assigned PowerLists, start/stop dialing, see calls, and save after-call lead status.
 - Supports browser softphone mode so the agent can click Start, connect audio in Chrome, and stay connected while TruckX dials customers.
-- Adds TruckX logo assets, favicon, extension branding, and a startup splash screen.
+- Adds TruckX logo assets, favicon, agent web login branding, and a startup splash screen.
 - Lets admins invite agents by name/email and HubSpot owner.
-- Includes a starter Chrome extension under `extension/` for agent setup and future HubSpot page integration.
+- Lets agents log in directly through a browser link; the Chrome extension is optional/future HubSpot page integration.
 - Includes starter adapters for Twilio and Plivo so real calling can be wired next.
 - Supports caller ID number pools through `CALLER_ID_NUMBERS`.
 - Includes setup checks for missing HubSpot/carrier credentials.
@@ -99,7 +99,7 @@ username:password:role:hubspot_owner_id
 
 Admins can see all owners. Agents only see campaigns/leads for their HubSpot owner ID.
 
-## Agent Invitations And Extension
+## Agent Web Invitations
 
 Admins can invite an agent from the **Agents** page:
 
@@ -109,7 +109,7 @@ Admins can invite an agent from the **Agents** page:
 4. Select the matching HubSpot owner.
 5. Click **Send Invitation**.
 
-If email sending is not configured, TruckX creates an invite link and shows **Copy invite** in the Agents table. If email sending is configured, the app emails the setup link automatically.
+If email sending is not configured, TruckX creates a web login link and shows **Copy web login link** in the Agents table. If email sending is configured, the app emails the login link automatically.
 
 Optional email sending uses Resend:
 
@@ -120,21 +120,15 @@ INVITE_FROM_EMAIL=TruckX Auto Dialer <dialer@truckx.com>
 
 For real invites, verify the sending domain in Resend first. A personal Gmail/Yahoo address cannot be used as the `from` address unless that exact domain is verified in Resend; for TruckX, use a sender on the company domain such as `dialer@truckx.com` or `no-reply@truckx.com` after DNS verification.
 
-The starter Chrome extension lives in:
+For real-agent testing:
 
-```text
-extension/
-```
+1. Copy the web login link from the Agents table.
+2. Send it to the agent.
+3. The agent opens it in Chrome.
+4. The agent allows microphone permission.
+5. The agent selects an assigned PowerList and clicks **Start Audio**.
 
-For local Chrome testing:
-
-1. Open `chrome://extensions`.
-2. Enable **Developer mode**.
-3. Click **Load unpacked**.
-4. Select the repo's `extension` folder.
-5. Paste the invite setup token in the extension popup.
-
-Each agent needs to load the unpacked extension once on their own Chrome profile during local testing. The extension opens `/agent/`, which is an agent-only dialer screen backed by the invite token. Admins create and sync PowerLists; agents only start/stop assigned lists and save after-call status. The next extension step is to add a HubSpot contact-page dial button and package it for Chrome Web Store.
+The old `/extension/?invite=...` setup links now redirect into `/agent/?token=...`, so agents do not need to install the unpacked Chrome extension for testing. The starter extension still lives in `extension/` for future HubSpot page integration.
 
 ## Logo Options
 
@@ -144,7 +138,7 @@ Open this page after deployment to compare logo directions:
 https://truckx-auto-dialer.onrender.com/logo-options.html
 ```
 
-The current web default is **C**, with the extension using the compact **B** mark.
+The current web default is **C**. The optional starter extension uses the compact **B** mark.
 
 Credential instructions are in [docs/GET_CREDENTIALS.md](docs/GET_CREDENTIALS.md).
 
