@@ -135,11 +135,13 @@ export const config = {
     authToken: process.env.TWILIO_AUTH_TOKEN || ''
   },
   plivo: {
+    apiBaseUrl: process.env.PLIVO_API_BASE_URL || 'https://api.plivo.com',
     authId: process.env.PLIVO_AUTH_ID || '',
     authToken: process.env.PLIVO_AUTH_TOKEN || '',
     browserUsername: process.env.PLIVO_BROWSER_USERNAME || '',
     browserPassword: process.env.PLIVO_BROWSER_PASSWORD || '',
     browserDialTarget: process.env.PLIVO_BROWSER_DIAL_TARGET || 'truckx-agent@phone.plivo.com',
+    applicationId: process.env.PLIVO_APPLICATION_ID || '',
     ringTimeoutSeconds: Math.max(5, Math.min(120, numberFromEnv('PLIVO_RING_TIMEOUT_SECONDS', 25))),
     machineDetection: ['true', 'hangup'].includes(plivoMachineDetection) ? plivoMachineDetection : '',
     machineDetectionTimeMs: Math.max(2000, Math.min(10000, numberFromEnv('PLIVO_MACHINE_DETECTION_TIME_MS', 5000)))

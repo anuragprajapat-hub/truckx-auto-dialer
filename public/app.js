@@ -37,6 +37,7 @@ const elements = {
   historySearch: document.querySelector('#historySearch'),
   agentInviteForm: document.querySelector('#agentInviteForm'),
   agentOwnerSelect: document.querySelector('#agentOwnerSelect'),
+  endpointProvisioningStatus: document.querySelector('#endpointProvisioningStatus'),
   agentRows: document.querySelector('#agentRows'),
   dispositionPanel: document.querySelector('#dispositionPanel'),
   dispositionLead: document.querySelector('#dispositionLead'),
@@ -781,6 +782,13 @@ function renderHistory() {
 
 function renderAgents() {
   const agents = state.agents || [];
+  const endpointReadiness = state.settings?.endpointReadiness || {};
+  if (elements.endpointProvisioningStatus) {
+    elements.endpointProvisioningStatus.textContent = endpointReadiness.ready
+      ? `Automatic endpoint creation is ready. Plivo currently has ${endpointReadiness.endpointCount || 0} endpoint(s).`
+      : `Automatic endpoint creation is not ready: ${endpointReadiness.error || 'set PLIVO_APPLICATION_ID or attach the shared endpoint to the TruckX Plivo application.'}`;
+    elements.endpointProvisioningStatus.className = endpointReadiness.ready ? 'notice success' : 'notice error';
+  }
   elements.agentRows.innerHTML = agents.length
     ? agents
         .map((agent) => {
@@ -805,7 +813,7 @@ function renderAgents() {
               <td>${escapeHtml(agent.email)}</td>
               <td>${escapeHtml(agent.hubspotOwnerId || agent.ownerId || '')}</td>
               <td>${escapeHtml(agent.callerIdNumber || 'Not assigned')}</td>
-              <td>${agent.plivoEndpointConfigured ? 'Per-agent' : 'Global fallback'}</td>
+              <td>${agent.plivoEndpointManaged ? 'Automatic' : agent.plivoEndpointConfigured ? 'Manual' : 'Global fallback'}</td>
               <td>${statusPill(agent.status || 'invited')}</td>
               <td>${statusPill(accessStatus)}</td>
               <td>${inviteCell}</td>

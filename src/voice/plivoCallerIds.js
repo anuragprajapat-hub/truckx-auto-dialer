@@ -22,11 +22,12 @@ function authHeader() {
 }
 
 async function fetchPage(offset) {
-  const url = new URL(`https://api.plivo.com/v1/Account/${config.plivo.authId}/VerifiedCallerId/`);
+  const url = new URL(`/v1/Account/${config.plivo.authId}/VerifiedCallerId/`, config.plivo.apiBaseUrl);
   url.searchParams.set('limit', String(PAGE_SIZE));
   url.searchParams.set('offset', String(offset));
 
   const response = await fetch(url, {
+    signal: AbortSignal.timeout(10000),
     headers: {
       Authorization: authHeader()
     }

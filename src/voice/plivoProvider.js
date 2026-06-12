@@ -48,7 +48,7 @@ export function createPlivoProvider() {
         hangup_method: 'POST'
       };
 
-      const response = await fetch(`https://api.plivo.com/v1/Account/${config.plivo.authId}/Call/`, {
+      const response = await fetch(`${String(config.plivo.apiBaseUrl).replace(/\/$/, '')}/v1/Account/${config.plivo.authId}/Call/`, {
         method: 'POST',
         headers: {
           Authorization: authHeader(),
@@ -97,7 +97,7 @@ export function createPlivoProvider() {
         body.machine_detection_method = 'POST';
       }
 
-      const response = await fetch(`https://api.plivo.com/v1/Account/${config.plivo.authId}/Call/`, {
+      const response = await fetch(`${String(config.plivo.apiBaseUrl).replace(/\/$/, '')}/v1/Account/${config.plivo.authId}/Call/`, {
         method: 'POST',
         headers: {
           Authorization: authHeader(),
@@ -125,7 +125,7 @@ export function createPlivoProvider() {
       const callId = call.providerLiveCallId || call.providerCallId;
       if (!callId) return { skipped: true };
 
-      const response = await fetch(`https://api.plivo.com/v1/Account/${config.plivo.authId}/Call/${encodeURIComponent(callId)}/`, {
+      const response = await fetch(`${String(config.plivo.apiBaseUrl).replace(/\/$/, '')}/v1/Account/${config.plivo.authId}/Call/${encodeURIComponent(callId)}/`, {
         method: 'DELETE',
         headers: {
           Authorization: authHeader()

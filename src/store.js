@@ -156,6 +156,8 @@ function normalizeStore(data) {
     if (typeof agent.plivoEndpointUsername !== 'string') agent.plivoEndpointUsername = '';
     if (typeof agent.plivoEndpointPassword !== 'string') agent.plivoEndpointPassword = '';
     if (typeof agent.plivoDialTarget !== 'string') agent.plivoDialTarget = '';
+    if (typeof agent.plivoEndpointId !== 'string') agent.plivoEndpointId = '';
+    if (typeof agent.plivoEndpointManaged !== 'boolean') agent.plivoEndpointManaged = false;
   }
   return data;
 }
@@ -439,6 +441,8 @@ export function createAgentInvite(input, publicBaseUrl) {
       plivoEndpointUsername: String(input.plivoEndpointUsername || '').trim(),
       plivoEndpointPassword: String(input.plivoEndpointPassword || ''),
       plivoDialTarget: String(input.plivoDialTarget || '').trim(),
+      plivoEndpointId: String(input.plivoEndpointId || '').trim(),
+      plivoEndpointManaged: Boolean(input.plivoEndpointManaged),
       apiToken: '',
       invitedAt: now,
       acceptedAt: '',
@@ -456,6 +460,10 @@ export function createAgentInvite(input, publicBaseUrl) {
       plivoEndpointUsername: String(input.plivoEndpointUsername || agent.plivoEndpointUsername || '').trim(),
       plivoEndpointPassword: String(input.plivoEndpointPassword || agent.plivoEndpointPassword || ''),
       plivoDialTarget: String(input.plivoDialTarget || agent.plivoDialTarget || '').trim(),
+      plivoEndpointId: String(input.plivoEndpointId || agent.plivoEndpointId || '').trim(),
+      plivoEndpointManaged: input.plivoEndpointManaged === undefined
+        ? Boolean(agent.plivoEndpointManaged)
+        : Boolean(input.plivoEndpointManaged),
       status: agent.status === 'active' ? 'active' : 'invited',
       invitedAt: now,
       updatedAt: now

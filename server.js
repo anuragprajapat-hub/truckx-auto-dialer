@@ -10,6 +10,11 @@ import { fetchHubSpotLeadStatusOptions } from './src/hubspot.js';
 import { buildAgentReports, buildDashboardSummary } from './src/reports.js';
 import { assertPlivoVerifiedCallerId, fetchPlivoVerifiedCallerIds } from './src/voice/plivoCallerIds.js';
 import {
+  deletePlivoEndpoint,
+  plivoEndpointReadiness,
+  provisionPlivoEndpoint
+} from './src/voice/plivoEndpoints.js';
+import {
   acceptAgentInvite,
   addDncNumber,
   addEvent,
@@ -35,6 +40,7 @@ import {
 const publicDir = path.resolve(process.cwd(), 'public');
 let lastLeadStatusOptionsErrorAt = 0;
 let lastVerifiedCallerIdsErrorAt = 0;
+let lastEndpointReadinessErrorAt = 0;
 const mimeTypes = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
@@ -299,7 +305,8 @@ function requireAdmin(request, response) {
 function safeAgents(agents = []) {
   return agents.map(({ apiToken, plivoEndpointPassword, ...agent }) => ({
     ...agent,
-    plivoEndpointConfigured: Boolean(agent.plivoEndpointUsername && plivoEndpointPassword)
+    plivoEndpointConfigured: Boolean(agent.plivoEndpointUsername && plivoEndpointPassword),
+    plivoEndpointManaged: Boolean(agent.plivoEndpointManaged)
   }));
 }
 
@@ -378,6 +385,24 @@ async function verifiedCallerIdsForState() {
     return {
       callerIds: [],
       source: 'unavailable',
+      error: error.message
+    };
+  }
+}
+
+async function endpointReadinessForState() {
+  try {
+    return await plivoEndpointReadiness();
+  } catch (error) {
+    if (Date.now() - lastEndpointReadinessErrorAt > 1000 * 60 * 5) {
+      lastEndpointReadinessErrorAt = Date.now();
+      addEvent('plivo_endpoint_readiness_failed', error.message);
+    }
+    return {
+      ready: false,
+      endpointCount: 0,
+      applicationId: '',
+      templateUsername: '',
       error: error.message
     };
   }
@@ -538,6 +563,7 @@ async function handleApi(request, response, url) {
   if (request.method === 'GET' && url.pathname === '/api/health') {
     const browserEndpoints = browserEndpointStatus();
     const verifiedCallerIds = await verifiedCallerIdsForState();
+    const endpointReadiness = await endpointReadinessForState();
     sendJson(response, {
       ok: true,
       appName: 'TruckX Auto Dialer',
@@ -549,6 +575,8 @@ async function handleApi(request, response, url) {
       perAgentBrowserEndpoints: browserEndpoints.perAgentCount,
       verifiedCallerIdCount: verifiedCallerIds.callerIds.length,
       verifiedCallerIdLookupReady: !verifiedCallerIds.error,
+      plivoEndpointCount: endpointReadiness.endpointCount,
+      automaticEndpointProvisioningReady: endpointReadiness.ready,
       leadSource: config.leadSource,
       storage: storeBackend(),
       time: new Date().toISOString()
@@ -562,6 +590,9 @@ async function handleApi(request, response, url) {
     const verifiedCallerIds = request.user?.role === 'admin'
       ? await verifiedCallerIdsForState()
       : { callerIds: [], source: 'restricted' };
+    const endpointReadiness = request.user?.role === 'admin'
+      ? await endpointReadinessForState()
+      : { ready: false, endpointCount: 0 };
     const reportData = {
       ...data,
       campaigns: data.campaigns.filter((campaign) => campaign.status !== 'deleted' && !campaign.deletedAt)
@@ -583,6 +614,7 @@ async function handleApi(request, response, url) {
         callerIdNumber: config.callerIdNumber,
         callerIdNumbers: config.callerIdNumbers,
         verifiedCallerIds,
+        endpointReadiness,
         hubspotProperties: config.hubspot.properties,
         leadStatusOptions,
         maxAttemptsPerLead: config.compliance.maxAttemptsPerLead
@@ -693,7 +725,39 @@ async function handleApi(request, response, url) {
       }
       body.plivoEndpointUsername = String(body.plivoEndpointUsername || '').trim();
     }
-    const result = createAgentInvite(body, config.publicBaseUrl);
+
+    const email = String(body.email || '').trim().toLowerCase();
+    const existingAgent = (getStore().agents || []).find((agent) => (
+      String(agent.email || '').trim().toLowerCase() === email
+    ));
+    let provisionedEndpoint = null;
+    if (
+      config.voiceProvider === 'plivo'
+      && config.agentConnectionMode === 'browser'
+      && !endpointUsername
+      && !existingAgent?.plivoEndpointUsername
+    ) {
+      try {
+        provisionedEndpoint = await provisionPlivoEndpoint(body);
+        body.plivoEndpointUsername = provisionedEndpoint.username;
+        body.plivoEndpointPassword = provisionedEndpoint.password;
+        body.plivoEndpointId = provisionedEndpoint.endpointId;
+        body.plivoEndpointManaged = true;
+      } catch (error) {
+        sendJson(response, { error: `Automatic Plivo endpoint creation failed: ${error.message}` }, 502);
+        return true;
+      }
+    }
+
+    let result;
+    try {
+      result = createAgentInvite(body, config.publicBaseUrl);
+    } catch (error) {
+      if (provisionedEndpoint?.endpointId) {
+        await deletePlivoEndpoint(provisionedEndpoint.endpointId).catch(() => {});
+      }
+      throw error;
+    }
 
     try {
       const emailResult = await sendAgentInviteEmail(result);
@@ -734,6 +798,16 @@ async function handleApi(request, response, url) {
     ));
     for (const campaign of activeCampaigns) {
       await dialerEngine.stopCampaign(campaign.id, 'stopped');
+    }
+    if (agent.plivoEndpointManaged && agent.plivoEndpointId) {
+      try {
+        await deletePlivoEndpoint(agent.plivoEndpointId);
+      } catch (error) {
+        addEvent('plivo_endpoint_delete_failed', error.message, {
+          agentId: agent.id,
+          endpointId: agent.plivoEndpointId
+        });
+      }
     }
     const deleted = deleteAgent(agent.id);
     sendJson(response, { deleted: true, agent: { id: deleted.id, name: deleted.name, email: deleted.email } });

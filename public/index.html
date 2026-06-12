@@ -277,6 +277,7 @@
                 <div class="panel-title">
                   <h2>Invite Agent</h2>
                 </div>
+                <p id="endpointProvisioningStatus" class="muted">Checking automatic Plivo endpoint provisioning...</p>
                 <form id="agentInviteForm" class="form-grid">
                   <label>
                     Name
@@ -296,11 +297,11 @@
                   </label>
                   <label>
                     Plivo endpoint username
-                    <input id="agentPlivoUsername" name="plivoEndpointUsername" placeholder="Optional for a unique agent endpoint">
+                    <input id="agentPlivoUsername" name="plivoEndpointUsername" placeholder="Leave blank to create automatically">
                   </label>
                   <label>
                     Plivo endpoint password
-                    <input id="agentPlivoPassword" name="plivoEndpointPassword" type="password" placeholder="Optional for a unique agent endpoint">
+                    <input id="agentPlivoPassword" name="plivoEndpointPassword" type="password" placeholder="Leave blank to create automatically">
                   </label>
                   <button class="primary-button" type="submit">Send Invitation</button>
                 </form>
