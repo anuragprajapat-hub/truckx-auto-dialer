@@ -150,8 +150,6 @@ export const config = {
     defaultCallWindowStart: process.env.DEFAULT_CALL_WINDOW_START || '09:00',
     defaultCallWindowEnd: process.env.DEFAULT_CALL_WINDOW_END || '18:00',
     maxAttemptsPerLead: numberFromEnv('MAX_ATTEMPTS_PER_LEAD', 3),
-    callableStatuses: listFromEnv('CALLABLE_LEAD_STATUSES').length
-      ? listFromEnv('CALLABLE_LEAD_STATUSES').map((status) => status.toLowerCase())
-      : ['new', 'retry', 'no_answer']
+    callableStatuses: listFromEnv('CALLABLE_LEAD_STATUSES').map((status) => status.toLowerCase())
   }
 };

@@ -577,6 +577,7 @@ async function handleApi(request, response, url) {
       verifiedCallerIdLookupReady: !verifiedCallerIds.error,
       plivoEndpointCount: endpointReadiness.endpointCount,
       automaticEndpointProvisioningReady: endpointReadiness.ready,
+      defaultLeadStatusQueue: config.compliance.callableStatuses.length ? 'allowlist' : 'all_safe_statuses',
       leadSource: config.leadSource,
       storage: storeBackend(),
       time: new Date().toISOString()

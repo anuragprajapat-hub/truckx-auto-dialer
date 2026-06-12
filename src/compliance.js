@@ -52,7 +52,11 @@ export function evaluateLeadForDial(lead, campaign, context = {}) {
     return { allowed: false, reason: 'Lead status does not match the selected filter' };
   }
 
-  if (!campaignLeadStatusFilters(campaign).length && !isCallableStatus(lead.status)) {
+  if (
+    !campaignLeadStatusFilters(campaign).length
+    && config.compliance.callableStatuses.length
+    && !isCallableStatus(lead.status)
+  ) {
     return { allowed: false, reason: 'Lead status is outside the default dialing queue' };
   }
 

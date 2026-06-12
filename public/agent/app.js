@@ -137,7 +137,7 @@ function renderLeadStatusFilter(campaign = selectedCampaign()) {
   if (elements.leadStatusFilter.dataset.optionsKey === key) return;
 
   elements.leadStatusFilter.innerHTML = [
-    '<option value="">Default dialing queue</option>',
+    '<option value="">All safe lead statuses</option>',
     ...options.map((option) => `<option value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</option>`)
   ].join('');
   elements.leadStatusFilter.value = selected;
@@ -988,7 +988,7 @@ elements.leadStatusFilter?.addEventListener('change', async () => {
         leadStatusFilters: value ? [value] : []
       })
     });
-    setNotice(value ? `Filter applied: ${leadStatusLabel(value)}.` : 'Using the default new, retry, and no-answer queue.', 'success');
+    setNotice(value ? `Filter applied: ${leadStatusLabel(value)}.` : 'Dialing all otherwise safe lead statuses.', 'success');
     await loadState();
   } catch (error) {
     setNotice(error.message, 'error');

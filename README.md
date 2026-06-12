@@ -89,7 +89,7 @@ When the admin invites an agent and leaves the endpoint username/password blank,
 
 In browser mode, the PowerList `Lines` value controls predictive customer dialing and can be edited after creation. If `Lines` is `3`, TruckX can ring up to 3 customer numbers while the agent is idle in the browser audio session. As soon as one customer answers, TruckX cancels the remaining ringing calls and pauses new dialing until that conversation ends and the agent saves the after-call outcome. If another customer answers after the agent is already connected, TruckX hangs up that extra customer leg and records it as `abandoned` so it is visible in the agent and admin Live views. Voicemail and no-answer results do not stop the PowerList; the next eligible contacts are dialed automatically.
 
-The agent lead-status filter creates an explicit queue, so an agent can select a HubSpot value such as `VOICEMAIL` or `FOLLOWUP` even when it is outside the default `new,retry,no_answer` queue. Global DNC, invalid-number, provider-error, time-zone, and maximum-attempt checks still apply.
+By default, a PowerList can dial every otherwise safe HubSpot lead status. The agent lead-status filter can narrow the queue to a value such as `VOICEMAIL` or `FOLLOWUP`. Global DNC, invalid-number, provider-error, time-zone, and maximum-attempt checks still apply. Set `CALLABLE_LEAD_STATUSES` only when a deployment needs a strict status allowlist.
 
 For separate agent logins, set `APP_USERS` instead of only one global login:
 
