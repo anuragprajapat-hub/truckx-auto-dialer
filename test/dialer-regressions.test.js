@@ -60,6 +60,11 @@ const hubspotServer = http.createServer(async (request, response) => {
     return;
   }
 
+  if (request.method === 'POST' && request.url === '/v1/Account/test-auth/Call/live-123/DTMF/') {
+    response.end(JSON.stringify({ message: 'digits sent' }));
+    return;
+  }
+
   response.statusCode = 404;
   response.end(JSON.stringify({ message: 'Not found' }));
 });
@@ -72,8 +77,10 @@ process.env.LEAD_SOURCE = 'hubspot';
 process.env.VOICE_PROVIDER = 'mock';
 
 const hubspot = await import('../src/hubspot.js');
+const { config } = await import('../src/config.js');
 const store = await import('../src/store.js');
 const { DialerEngine } = await import('../src/dialerEngine.js');
+const { createPlivoProvider } = await import('../src/voice/plivoProvider.js');
 
 await store.initStore();
 
@@ -124,6 +131,18 @@ test('returning a connected campaign to running preserves its active audio sessi
 
   assert.equal(resumed.currentSessionId, sessionId);
   assert.equal(store.getStore().sessions.filter((item) => item.campaignId === campaign.id).length, 1);
+});
+
+test('PowerList Lines can be updated after creation', () => {
+  const campaign = store.createCampaign({
+    ownerId: 'owner_demo_1',
+    name: 'Editable lines',
+    maxParallelCalls: 1
+  });
+
+  const updated = store.updateCampaign(campaign.id, { maxParallelCalls: 4 });
+  assert.equal(updated.maxParallelCalls, 4);
+  assert.equal(store.getStore().campaigns.find((item) => item.id === campaign.id).maxParallelCalls, 4);
 });
 
 test('voicemail resumes the campaign queue automatically', async () => {
@@ -229,4 +248,43 @@ test('a late machine callback corrects live answer to voicemail and resumes dial
   assert.equal(corrected.outcome, 'voicemail');
   assert.equal(corrected.requiresDisposition, false);
   assert.equal(scheduledReason, 'call_completed_voicemail');
+});
+
+test('manual dialing uses an active agent audio session', async () => {
+  const campaign = store.createCampaign({
+    ownerId: 'owner_demo_1',
+    name: 'Manual dial',
+    maxParallelCalls: 1
+  });
+  const running = store.setCampaignStatus(campaign.id, 'running');
+  store.updateSession(running.currentSessionId, {
+    agentConnectedAt: new Date().toISOString(),
+    agentCallStatus: 'in_progress'
+  });
+
+  const engine = new DialerEngine();
+  const call = await engine.manualDial(campaign.id, { phone: '+12125550999' });
+
+  assert.equal(call.leadPhone, '+12125550999');
+  assert.equal(call.campaignId, campaign.id);
+  assert.equal(call.status, 'dialing');
+});
+
+test('connected-call keypad sends DTMF to the active Plivo call leg', async () => {
+  config.plivo.apiBaseUrl = process.env.HUBSPOT_API_BASE_URL;
+  config.plivo.authId = 'test-auth';
+  config.plivo.authToken = 'test-token';
+  const provider = createPlivoProvider();
+
+  const result = await provider.sendDigits({
+    providerCallId: 'request-123',
+    providerLiveCallId: 'live-123'
+  }, '#');
+
+  assert.equal(result.message, 'digits sent');
+  const dtmfRequest = requests.find((item) => item.url === '/v1/Account/test-auth/Call/live-123/DTMF/');
+  assert.deepEqual(dtmfRequest.body, {
+    digits: '#',
+    leg: 'aleg'
+  });
 });

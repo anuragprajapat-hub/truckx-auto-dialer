@@ -579,6 +579,7 @@ async function handleApi(request, response, url) {
       automaticEndpointProvisioningReady: endpointReadiness.ready,
       defaultLeadStatusQueue: config.compliance.callableStatuses.length ? 'allowlist' : 'all_safe_statuses',
       hubspotContactSync: 'all_owner_contacts',
+      connectedCallDtmf: typeof dialerEngine.voiceProvider.sendDigits === 'function',
       leadSource: config.leadSource,
       storage: storeBackend(),
       time: new Date().toISOString()
@@ -619,7 +620,8 @@ async function handleApi(request, response, url) {
         endpointReadiness,
         hubspotProperties: config.hubspot.properties,
         leadStatusOptions,
-        maxAttemptsPerLead: config.compliance.maxAttemptsPerLead
+        maxAttemptsPerLead: config.compliance.maxAttemptsPerLead,
+        connectedCallDtmf: typeof dialerEngine.voiceProvider.sendDigits === 'function'
       },
       owners: data.owners,
       campaigns: data.campaigns,
@@ -942,6 +944,13 @@ async function handleApi(request, response, url) {
   if (request.method === 'PATCH' && updateCampaignMatch) {
     assertCampaignAccess(updateCampaignMatch[1], request.user);
     const body = await parseBody(request);
+    if (body.maxParallelCalls !== undefined) {
+      const lineCount = Number(body.maxParallelCalls);
+      if (!Number.isInteger(lineCount) || lineCount < 1 || lineCount > 10) {
+        sendJson(response, { error: 'Lines must be a whole number from 1 to 10' }, 400);
+        return true;
+      }
+    }
     const patch = request.user?.role === 'admin'
       ? {
           maxParallelCalls: body.maxParallelCalls,
@@ -994,6 +1003,14 @@ async function handleApi(request, response, url) {
     return true;
   }
 
+  const manualDialCampaignId = campaignIdFromPath(url.pathname, 'manual-dial');
+  if (request.method === 'POST' && manualDialCampaignId) {
+    assertCampaignAccess(manualDialCampaignId, request.user);
+    const body = await parseBody(request);
+    sendJson(response, await dialerEngine.manualDial(manualDialCampaignId, body), 201);
+    return true;
+  }
+
   const syncCampaignId = campaignIdFromPath(url.pathname, 'sync-hubspot');
   if (request.method === 'POST' && syncCampaignId) {
     if (requireAdmin(request, response)) return true;
@@ -1034,6 +1051,16 @@ async function handleApi(request, response, url) {
     const call = data.calls.find((item) => item.id === hangupMatch[1]);
     assertCampaignAccess(call?.campaignId, request.user);
     sendJson(response, await dialerEngine.hangupCustomerCall(hangupMatch[1]));
+    return true;
+  }
+
+  const dtmfMatch = url.pathname.match(/^\/api\/calls\/([^/]+)\/dtmf$/);
+  if (request.method === 'POST' && dtmfMatch) {
+    const body = await parseBody(request);
+    const data = getStore();
+    const call = data.calls.find((item) => item.id === dtmfMatch[1]);
+    assertCampaignAccess(call?.campaignId, request.user);
+    sendJson(response, await dialerEngine.sendCallDigits(dtmfMatch[1], body));
     return true;
   }
 

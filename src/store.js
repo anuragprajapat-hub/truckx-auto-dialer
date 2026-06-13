@@ -747,6 +747,38 @@ export function upsertLeads(leads) {
   });
 }
 
+export function upsertManualLead(input) {
+  return updateStore((data) => {
+    const existing = data.leads.find((lead) => (
+      lead.ownerId === input.ownerId
+      && lead.phone === input.phone
+    ));
+    if (existing) return existing;
+
+    const lead = {
+      id: randomUUID(),
+      hubspotId: '',
+      ownerId: input.ownerId,
+      hubspotOwnerId: input.hubspotOwnerId || '',
+      name: input.name || input.phone,
+      company: 'Manual dial',
+      phone: input.phone,
+      email: '',
+      timeZone: '',
+      timeZoneLabel: 'Unassigned',
+      status: input.status || 'new',
+      consent: true,
+      doNotCall: false,
+      attempts: 0,
+      lastOutcome: '',
+      source: 'manual',
+      createdAt: new Date().toISOString()
+    };
+    data.leads.push(lead);
+    return lead;
+  });
+}
+
 export function resetProviderErrorsForCampaign(campaignId) {
   return updateStore((data) => {
     const campaign = data.campaigns.find((item) => item.id === campaignId);

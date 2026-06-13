@@ -51,6 +51,9 @@ const elements = {
   campaignStatus: document.querySelector('#campaignStatus'),
   startButton: document.querySelector('#startButton'),
   stopButton: document.querySelector('#stopButton'),
+  manualDialForm: document.querySelector('#manualDialForm'),
+  manualDialPhone: document.querySelector('#manualDialPhone'),
+  manualDialButton: document.querySelector('#manualDialButton'),
   audioStatus: document.querySelector('#audioStatus'),
   dispositionPanel: document.querySelector('#dispositionPanel'),
   dispositionLead: document.querySelector('#dispositionLead'),
@@ -69,6 +72,8 @@ const elements = {
   connectedCallEmail: document.querySelector('#connectedCallEmail'),
   connectedCallStatus: document.querySelector('#connectedCallStatus'),
   connectedCallCampaign: document.querySelector('#connectedCallCampaign'),
+  connectedDialPad: document.querySelector('#connectedDialPad'),
+  dialPadStatus: document.querySelector('#dialPadStatus'),
   hangupCallButton: document.querySelector('#hangupCallButton')
 };
 
@@ -584,6 +589,16 @@ function renderCurrentCall() {
   });
 }
 
+function manualDialReady(campaign = selectedCampaign()) {
+  if (!campaign || campaign.status !== 'running') return false;
+  const session = currentSession(campaign);
+  const hasActiveCall = callsForSelectedCampaign().some((call) => (
+    ACTIVE_STATUSES.has(call.status) || call.requiresDisposition
+  ));
+  const audioReady = softphoneMode !== 'browser' || softphoneCallActive;
+  return Boolean(session?.agentConnectedAt && audioReady && !hasActiveCall);
+}
+
 function renderConnectedCall() {
   if (!elements.connectedCallPanel) return;
   const campaign = selectedCampaign();
@@ -608,6 +623,11 @@ function renderConnectedCall() {
   elements.connectedCallCampaign.textContent = campaign?.name || '-';
   elements.hangupCallButton.disabled = false;
   elements.hangupCallButton.textContent = 'Hang up customer';
+  elements.connectedDialPad.hidden = !state.settings?.connectedCallDtmf;
+  elements.dialPadStatus.textContent = 'Use for phone menus';
+  elements.connectedDialPad.querySelectorAll('[data-dtmf]').forEach((button) => {
+    button.disabled = false;
+  });
   notifyConnectedCall(call, lead);
 }
 
@@ -800,6 +820,8 @@ function renderCampaigns() {
     elements.campaignStatus = document.querySelector('#campaignStatus');
     elements.startButton.disabled = true;
     elements.stopButton.disabled = true;
+    elements.manualDialPhone.disabled = true;
+    elements.manualDialButton.disabled = true;
     renderLeadStatusFilter(null);
     return;
   }
@@ -820,6 +842,12 @@ function renderCampaigns() {
     : softphoneMode === 'browser' ? 'Start Audio' : 'Start';
   elements.startButton.disabled = connectAudio || canReconnectAudio ? false : ['running', 'connected'].includes(current.status);
   elements.stopButton.disabled = !['running', 'connected', 'paused'].includes(current.status);
+  const canManualDial = manualDialReady(current);
+  elements.manualDialPhone.disabled = !canManualDial;
+  elements.manualDialButton.disabled = !canManualDial;
+  elements.manualDialButton.title = canManualDial
+    ? 'Dial this number using the connected agent audio session'
+    : 'Start the PowerList, connect audio, and finish the current call first';
   renderLeadStatusFilter(current);
   renderSoftphoneStatus(current);
 }
@@ -900,6 +928,7 @@ function renderCalls() {
         <strong>${escapeHtml(call.leadName)}</strong>
         <span>${escapeHtml(call.leadPhone)} | ${escapeHtml(new Date(call.startedAt).toLocaleTimeString())}</span>
         ${statusPill(call.outcome || call.status)}
+        <button class="redial-button" type="button" data-redial-phone="${escapeHtml(call.leadPhone)}">Redial</button>
       </div>
     `).join('')
     : '<div class="empty">No calls yet</div>';
@@ -913,6 +942,40 @@ function renderCalls() {
       </div>
     `).join('')
     : '<div class="empty">No abandoned calls</div>';
+
+  elements.recentCalls.querySelectorAll('[data-redial-phone]').forEach((button) => {
+    button.disabled = !manualDialReady();
+    button.addEventListener('click', async () => {
+      elements.manualDialPhone.value = button.dataset.redialPhone || '';
+      await submitManualDial();
+    });
+  });
+}
+
+async function submitManualDial() {
+  const campaign = selectedCampaign();
+  if (!campaign) return;
+  const phone = String(elements.manualDialPhone.value || '').trim();
+  if (!phone) {
+    setNotice('Enter a US phone number to dial.', 'error');
+    return;
+  }
+
+  elements.manualDialButton.disabled = true;
+  elements.manualDialButton.textContent = 'Dialing...';
+  try {
+    await api(`/api/campaigns/${campaign.id}/manual-dial`, {
+      method: 'POST',
+      body: JSON.stringify({ phone })
+    });
+    setNotice(`Dialing ${phone}.`, 'success');
+    await loadState();
+  } catch (error) {
+    setNotice(error.message, 'error');
+  } finally {
+    elements.manualDialButton.textContent = 'Dial number';
+    elements.manualDialButton.disabled = !manualDialReady();
+  }
 }
 
 function render() {
@@ -1006,6 +1069,34 @@ elements.startButton.addEventListener('click', async () => {
     setNotice(error.message, 'error');
     await loadState().catch(() => {});
   }
+});
+
+elements.manualDialForm?.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  await submitManualDial();
+});
+
+elements.connectedDialPad?.querySelectorAll('[data-dtmf]').forEach((button) => {
+  button.addEventListener('click', async () => {
+    const callId = elements.connectedCallPanel.dataset.callId || activeConnectedCallId;
+    const digits = button.dataset.dtmf || '';
+    if (!callId || !digits) return;
+
+    button.disabled = true;
+    elements.dialPadStatus.textContent = `Sending ${digits}...`;
+    try {
+      await api(`/api/calls/${callId}/dtmf`, {
+        method: 'POST',
+        body: JSON.stringify({ digits })
+      });
+      elements.dialPadStatus.textContent = `Sent ${digits}`;
+    } catch (error) {
+      elements.dialPadStatus.textContent = error.message;
+      setNotice(`Dial pad failed: ${error.message}`, 'error');
+    } finally {
+      button.disabled = false;
+    }
+  });
 });
 
 elements.hangupCallButton?.addEventListener('click', async () => {

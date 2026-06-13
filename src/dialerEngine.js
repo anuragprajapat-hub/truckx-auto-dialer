@@ -1,5 +1,5 @@
 import { config } from './config.js';
-import { evaluateLeadForDial, matchesCampaignLeadStatus } from './compliance.js';
+import { evaluateLeadForDial, matchesCampaignLeadStatus, normalizeUsPhone } from './compliance.js';
 import {
   addCall,
   addEvent,
@@ -9,6 +9,7 @@ import {
   updateSession,
   updateCall,
   updateLead,
+  upsertManualLead,
   upsertLeads,
   upsertOwners
 } from './store.js';
@@ -395,13 +396,30 @@ export class DialerEngine {
     return false;
   }
 
-  async startCall(campaign, lead) {
+  async startCall(campaign, lead, options = {}) {
     const data = getStore();
     const dncNumbers = new Set((data.dncNumbers || []).map((item) => item.phone));
-    const allowed = evaluateLeadForDial(lead, campaign, { dncNumbers });
+    const normalizedPhone = normalizeUsPhone(lead.phone);
+    const allowed = options.skipQueueChecks
+      ? {
+          allowed: Boolean(normalizedPhone)
+            && !dncNumbers.has(normalizedPhone)
+            && !lead.doNotCall
+            && String(lead.status || '').toLowerCase() !== 'do_not_call',
+          phone: normalizedPhone,
+          reason: !normalizedPhone
+            ? 'Invalid or non-US phone number'
+            : dncNumbers.has(normalizedPhone)
+                || lead.doNotCall
+                || String(lead.status || '').toLowerCase() === 'do_not_call'
+              ? 'Number is on the do not call list'
+              : 'Allowed'
+        }
+      : evaluateLeadForDial(lead, campaign, { dncNumbers });
     if (!allowed.allowed) {
       addEvent('lead_skipped', allowed.reason, { campaignId: campaign.id, leadId: lead.id });
-      return;
+      if (options.throwOnError) throw new Error(allowed.reason);
+      return null;
     }
 
     const attempt = Number(lead.attempts || 0) + 1;
@@ -470,6 +488,7 @@ export class DialerEngine {
         callId: call.id,
         provider: providerCall.provider
       });
+      return call;
     } catch (error) {
       updateLead(lead.id, {
         phone: allowed.phone,
@@ -481,7 +500,90 @@ export class DialerEngine {
         campaignId: campaign.id,
         leadId: lead.id
       });
+      if (options.throwOnError) throw error;
+      return null;
     }
+  }
+
+  async manualDial(campaignId, input = {}) {
+    const data = getStore();
+    const campaign = data.campaigns.find((item) => item.id === campaignId);
+    if (!campaign) throw new Error('Campaign not found');
+    if (campaign.status !== 'running' || !campaign.currentSessionId) {
+      throw new Error('Start the PowerList and connect agent audio before manual dialing');
+    }
+
+    const session = data.sessions.find((item) => item.id === campaign.currentSessionId && !item.endedAt);
+    if (!session?.agentConnectedAt) {
+      throw new Error('Connect agent audio before manual dialing');
+    }
+
+    const activeCall = data.calls.find((call) => (
+      call.campaignId === campaign.id
+      && (ACTIVE_STATUSES.has(call.status) || call.requiresDisposition)
+    ));
+    if (activeCall) {
+      throw new Error('Finish the current call and save its outcome before manual dialing');
+    }
+
+    const phone = normalizeUsPhone(input.phone);
+    if (!phone) throw new Error('Enter a valid US phone number');
+    if ((data.dncNumbers || []).some((item) => item.phone === phone)) {
+      throw new Error('Number is on the global DNC list');
+    }
+
+    const existingLead = data.leads.find((lead) => (
+      lead.ownerId === campaign.ownerId
+      && normalizeUsPhone(lead.phone) === phone
+    ));
+    const lead = existingLead || upsertManualLead({
+      ownerId: campaign.ownerId,
+      hubspotOwnerId: campaign.hubspotOwnerId,
+      phone,
+      name: String(input.name || '').trim() || phone,
+      status: campaign.leadStatusFilters?.[0] || 'new'
+    });
+    setCampaignStatus(campaign.id, 'connected');
+    let call = null;
+    try {
+      call = await this.startCall(campaign, lead, {
+        skipQueueChecks: true,
+        throwOnError: true
+      });
+    } catch (error) {
+      this.resumeCampaignQueue(campaign.id, 'manual_dial_failed');
+      throw error;
+    }
+    addEvent('manual_dial_started', `Agent manually dialed ${phone}`, {
+      campaignId: campaign.id,
+      callId: call.id,
+      leadId: lead.id,
+      phone
+    });
+    return call;
+  }
+
+  async sendCallDigits(callId, input = {}) {
+    const digits = String(input.digits || '').trim();
+    if (!digits || digits.length > 32 || !/^[0-9*#wW]+$/.test(digits)) {
+      throw new Error('DTMF digits can contain only 0-9, *, #, w, or W');
+    }
+
+    const call = getStore().calls.find((item) => item.id === callId);
+    if (!call) throw new Error('Call not found');
+    if (call.status !== 'in_progress' || call.completedAt) {
+      throw new Error('DTMF can only be sent during a connected call');
+    }
+    if (typeof this.voiceProvider.sendDigits !== 'function') {
+      throw new Error(`${this.voiceProvider.name} does not support dial-pad digits`);
+    }
+
+    const result = await this.voiceProvider.sendDigits(call, digits);
+    addEvent('call_dtmf_sent', `Sent dial-pad digit${digits.length === 1 ? '' : 's'}`, {
+      campaignId: call.campaignId,
+      callId: call.id
+    });
+    return { ok: true, digits, providerResult: result };
   }
 
   async updateHubSpotLeadSafe(call, lead, patch, eventType = 'hubspot_write_failed') {

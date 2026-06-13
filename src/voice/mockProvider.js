@@ -24,6 +24,12 @@ export function createMockProvider() {
     },
     async cancelOutboundCall() {
       return { canceled: true };
+    },
+    async sendDigits(call, digits) {
+      return {
+        callId: call.providerLiveCallId || call.providerCallId,
+        digits
+      };
     }
   };
 }

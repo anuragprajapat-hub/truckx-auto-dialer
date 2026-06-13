@@ -140,6 +140,30 @@ export function createPlivoProvider() {
 
       return result;
     },
+    async sendDigits(call, digits) {
+      assertPlivoConfig();
+      const callId = call.providerLiveCallId || call.providerCallId;
+      if (!callId) throw new Error('Active Plivo call ID is unavailable');
+
+      const response = await fetch(`${String(config.plivo.apiBaseUrl).replace(/\/$/, '')}/v1/Account/${config.plivo.authId}/Call/${encodeURIComponent(callId)}/DTMF/`, {
+        method: 'POST',
+        headers: {
+          Authorization: authHeader(),
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          digits,
+          leg: 'aleg'
+        })
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || result.message || `Plivo DTMF failed with ${response.status}`);
+      }
+
+      return result;
+    },
     resolveOutcome() {
       return null;
     }

@@ -14,6 +14,8 @@ This is a standalone autodialer prototype for a sales team calling US numbers. I
 - Shows live campaign, queue, active calls, call log, and agent reports in the browser.
 - Adds an admin-style portal with PowerLists, Reports, Call History, Agents, Live, and Setup sections.
 - Adds an agent-only dialer portal where agents can use assigned PowerLists, filter by HubSpot lead status, start/stop dialing, see connected customer details, hang up a customer leg, and save after-call lead status.
+- Lets agents manually dial or redial a US number through their connected browser audio session.
+- Adds a connected-call keypad for sending DTMF digits to automated phone menus.
 - Supports browser softphone mode so the agent can click Start, connect audio in Chrome, and stay connected while TruckX dials customers.
 - Adds TruckX logo assets, favicon, agent web login branding, and a startup splash screen.
 - Lets admins invite agents by name/email and HubSpot owner.
@@ -88,6 +90,8 @@ The Plivo Endpoint controls the agent's browser audio connection; it does not de
 When the admin invites an agent and leaves the endpoint username/password blank, TruckX automatically creates a unique Plivo Endpoint and attaches it to the same Plivo application as the configured shared browser Endpoint. Set `PLIVO_APPLICATION_ID` only if TruckX cannot infer that application from `PLIVO_BROWSER_USERNAME`. Deleting an agent also removes an automatically managed Endpoint from Plivo.
 
 In browser mode, the PowerList `Lines` value controls predictive customer dialing and can be edited after creation. If `Lines` is `3`, TruckX can ring up to 3 customer numbers while the agent is idle in the browser audio session. As soon as one customer answers, TruckX cancels the remaining ringing calls and pauses new dialing until that conversation ends and the agent saves the after-call outcome. If another customer answers after the agent is already connected, TruckX hangs up that extra customer leg and records it as `abandoned` so it is visible in the agent and admin Live views. Voicemail and no-answer results do not stop the PowerList; the next eligible contacts are dialed automatically.
+
+Manual dial and redial require a running PowerList with the agent audio session connected. The connected-call keypad sends DTMF through Plivo for phone menus such as "press 1 for sales."
 
 By default, a PowerList can dial every otherwise safe HubSpot lead status. The agent lead-status filter can narrow the queue to a value such as `VOICEMAIL` or `FOLLOWUP`. Global DNC, invalid-number, provider-error, time-zone, and maximum-attempt checks still apply. To enforce a deployment-wide allowlist, set both `STRICT_CALLABLE_LEAD_STATUSES=true` and `CALLABLE_LEAD_STATUSES`.
 

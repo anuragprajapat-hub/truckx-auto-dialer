@@ -443,6 +443,70 @@ label {
   overflow-wrap: anywhere;
 }
 
+.manual-dial-form {
+  align-items: end;
+  background: #f7fafc;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 12px;
+}
+
+.manual-dial-form label {
+  display: grid;
+  gap: 6px;
+}
+
+.manual-dial-form button {
+  min-height: 42px;
+}
+
+.connected-dial-pad {
+  background: #f7fafc;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.dial-pad-heading {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.dial-pad-heading span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.dial-pad-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.dial-pad-grid button {
+  background: #ffffff;
+  border-color: var(--line-strong);
+  color: var(--ink);
+  font-size: 19px;
+  font-weight: 800;
+  min-height: 44px;
+}
+
+.dial-pad-grid button:active {
+  background: var(--blue-soft);
+}
+
+.redial-button {
+  justify-self: start;
+  margin-top: 4px;
+}
+
 .hangup-button {
   background: var(--rose);
   border-color: var(--rose);
@@ -765,6 +829,10 @@ tr.is-active-lead td {
   }
 
   .connected-customer-details {
+    grid-template-columns: 1fr;
+  }
+
+  .manual-dial-form {
     grid-template-columns: 1fr;
   }
 }

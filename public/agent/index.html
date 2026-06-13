@@ -103,6 +103,14 @@
 
             <section id="audioStatus" class="audio-status" hidden aria-live="polite"></section>
 
+            <form id="manualDialForm" class="manual-dial-form">
+              <label>
+                Manual dial or redial
+                <input id="manualDialPhone" inputmode="tel" placeholder="+1 555 123 4567" autocomplete="off">
+              </label>
+              <button id="manualDialButton" type="submit">Dial number</button>
+            </form>
+
             <section id="dispositionPanel" class="disposition-panel" hidden>
               <div class="disposition-card">
                 <div class="disposition-heading">
@@ -208,6 +216,26 @@
               <strong id="connectedCallCampaign">-</strong>
             </div>
           </div>
+          <section id="connectedDialPad" class="connected-dial-pad" aria-label="Call dial pad">
+            <div class="dial-pad-heading">
+              <strong>Dial pad</strong>
+              <span id="dialPadStatus">Use for phone menus</span>
+            </div>
+            <div class="dial-pad-grid">
+              <button type="button" data-dtmf="1">1</button>
+              <button type="button" data-dtmf="2">2</button>
+              <button type="button" data-dtmf="3">3</button>
+              <button type="button" data-dtmf="4">4</button>
+              <button type="button" data-dtmf="5">5</button>
+              <button type="button" data-dtmf="6">6</button>
+              <button type="button" data-dtmf="7">7</button>
+              <button type="button" data-dtmf="8">8</button>
+              <button type="button" data-dtmf="9">9</button>
+              <button type="button" data-dtmf="*">*</button>
+              <button type="button" data-dtmf="0">0</button>
+              <button type="button" data-dtmf="#">#</button>
+            </div>
+          </section>
           <button id="hangupCallButton" class="hangup-button" type="button">Hang up customer</button>
         </div>
       </section>

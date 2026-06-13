@@ -2,6 +2,10 @@ let state = null;
 let setup = null;
 let selectedCampaignId = '';
 let activeView = 'powerlists';
+let campaignSettingsDraft = {
+  campaignId: '',
+  dirty: false
+};
 const DASHBOARD_TIME_ZONE = 'America/Los_Angeles';
 const ACTIVE_CALL_STATUSES = new Set(['dialing', 'queued', 'ringing', 'in_progress']);
 
@@ -514,6 +518,7 @@ function renderCampaigns() {
 function renderSelectedCampaign() {
   const campaign = selectedCampaign();
   if (!campaign) {
+    campaignSettingsDraft = { campaignId: '', dirty: false };
     elements.activeCampaignName.textContent = 'Queue';
     elements.activeCampaignMeta.textContent = 'No campaign selected';
     renderQueueHealth([], null);
@@ -542,8 +547,14 @@ function renderSelectedCampaign() {
   elements.updateCampaignButton.disabled = false;
   elements.selectedCampaignLines.disabled = false;
   elements.selectedCampaignCallerId.disabled = false;
-  elements.selectedCampaignLines.value = campaign.maxParallelCalls || 1;
-  elements.selectedCampaignCallerId.value = campaign.callerIdNumber || campaign.callerIdNumbers?.[0] || '';
+  if (campaignSettingsDraft.campaignId !== campaign.id || !campaignSettingsDraft.dirty) {
+    elements.selectedCampaignLines.value = campaign.maxParallelCalls || 1;
+    elements.selectedCampaignCallerId.value = campaign.callerIdNumber || campaign.callerIdNumbers?.[0] || '';
+    campaignSettingsDraft = {
+      campaignId: campaign.id,
+      dirty: false
+    };
+  }
   elements.syncHubSpotButton.disabled = state.settings.leadSource !== 'hubspot';
   elements.resetProviderErrorsButton.disabled = !campaignLeads.some((lead) => lead.status === 'provider_error');
   renderQueueHealth(campaignLeads, campaign);
@@ -1053,18 +1064,53 @@ elements.deleteCampaignButton.addEventListener('click', async () => {
   }
 });
 
+elements.selectedCampaignLines.addEventListener('input', () => {
+  campaignSettingsDraft = {
+    campaignId: selectedCampaign()?.id || '',
+    dirty: true
+  };
+});
+
+elements.selectedCampaignCallerId.addEventListener('input', () => {
+  campaignSettingsDraft = {
+    campaignId: selectedCampaign()?.id || '',
+    dirty: true
+  };
+});
+
 elements.updateCampaignButton.addEventListener('click', async () => {
   const campaign = selectedCampaign();
   if (!campaign) return;
   try {
-    await api(`/api/campaigns/${campaign.id}`, {
+    const maxParallelCalls = Number(elements.selectedCampaignLines.value);
+    if (!Number.isInteger(maxParallelCalls) || maxParallelCalls < 1 || maxParallelCalls > 10) {
+      throw new Error('Lines must be a whole number from 1 to 10.');
+    }
+
+    const currentCallerId = campaign.callerIdNumber || campaign.callerIdNumbers?.[0] || '';
+    const nextCallerId = String(elements.selectedCampaignCallerId.value || '').trim();
+    const patch = {};
+    if (maxParallelCalls !== Number(campaign.maxParallelCalls || 1)) {
+      patch.maxParallelCalls = maxParallelCalls;
+    }
+    if (nextCallerId !== currentCallerId) {
+      patch.callerIdNumber = nextCallerId;
+    }
+    if (!Object.keys(patch).length) {
+      campaignSettingsDraft.dirty = false;
+      setNotice('PowerList settings are already up to date.', 'info');
+      return;
+    }
+
+    const updated = await api(`/api/campaigns/${campaign.id}`, {
       method: 'PATCH',
-      body: JSON.stringify({
-        maxParallelCalls: Number(elements.selectedCampaignLines.value || 1),
-        callerIdNumber: elements.selectedCampaignCallerId.value
-      })
+      body: JSON.stringify(patch)
     });
-    setNotice('PowerList lines and caller ID updated.', 'success');
+    campaignSettingsDraft = {
+      campaignId: campaign.id,
+      dirty: false
+    };
+    setNotice(`PowerList updated to ${updated.maxParallelCalls} line${updated.maxParallelCalls === 1 ? '' : 's'}.`, 'success');
     await loadState();
   } catch (error) {
     setNotice(`PowerList update failed: ${error.message}`, 'error');
