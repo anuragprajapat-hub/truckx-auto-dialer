@@ -195,6 +195,11 @@ test('startup HubSpot recovery imports leads for existing empty PowerLists once 
     start: 101,
     end: 200
   });
+
+  const adminSnapshot = engine.campaignSnapshot(campaign.id, { includeLeads: false });
+  assert.equal(adminSnapshot.leads.length, 0);
+  assert.equal(adminSnapshot.summary.total, 1250);
+  assert.equal(adminSnapshot.summary.ready, 1250);
 });
 
 test('missing optional HubSpot properties do not turn a successful status update into an error', async () => {

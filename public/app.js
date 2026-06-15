@@ -7,10 +7,8 @@ let campaignSettingsDraft = {
   dirty: false
 };
 let selectedCampaignSnapshot = null;
-let selectedLeadPage = 0;
 let stateLoadInFlight = false;
 let snapshotRequestId = 0;
-const LEAD_PAGE_SIZE = 100;
 const DASHBOARD_TIME_ZONE = 'America/Los_Angeles';
 const ACTIVE_CALL_STATUSES = new Set(['dialing', 'queued', 'ringing', 'in_progress']);
 
@@ -33,12 +31,6 @@ const elements = {
   activeCampaignName: document.querySelector('#activeCampaignName'),
   activeCampaignMeta: document.querySelector('#activeCampaignMeta'),
   notice: document.querySelector('#notice'),
-  queueHealth: document.querySelector('#queueHealth'),
-  leadRows: document.querySelector('#leadRows'),
-  leadPagination: document.querySelector('#leadPagination'),
-  leadPageStatus: document.querySelector('#leadPageStatus'),
-  previousLeadPage: document.querySelector('#previousLeadPage'),
-  nextLeadPage: document.querySelector('#nextLeadPage'),
   activeCalls: document.querySelector('#activeCalls'),
   callLog: document.querySelector('#callLog'),
   abandonedCalls: document.querySelector('#abandonedCalls'),
@@ -190,131 +182,6 @@ function statusPill(value, extraClass = '') {
 function campaignTarget(campaign) {
   const target = String(campaign?.timeZoneTarget || 'ALL').toUpperCase();
   return ['EST', 'CST', 'MST', 'PST'].includes(target) ? target : 'ALL';
-}
-
-function currentSession(campaign) {
-  if (!campaign?.currentSessionId) return null;
-  return (state.sessions || []).find((session) => session.id === campaign.currentSessionId) || null;
-}
-
-function leadZone(lead) {
-  const value = String(lead.timeZoneLabel || lead.timeZone || '').trim();
-  const ianaMap = {
-    'America/New_York': 'EST',
-    'America/Chicago': 'CST',
-    'America/Denver': 'MST',
-    'America/Phoenix': 'MST',
-    'America/Los_Angeles': 'PST'
-  };
-  return ianaMap[value] || value.toUpperCase();
-}
-
-function leadMatchesCampaign(lead, campaign) {
-  const target = campaignTarget(campaign);
-  const zone = leadZone(lead);
-  const zoneMatches = target === 'ALL' || zone === target || zone === 'UNASSIGNED';
-  const filters = Array.isArray(campaign?.leadStatusFilters)
-    ? campaign.leadStatusFilters.map((value) => String(value).trim().toLowerCase()).filter(Boolean)
-    : [];
-  const statusMatches = !filters.length || filters.includes(String(lead.status || '').trim().toLowerCase());
-  return zoneMatches && statusMatches;
-}
-
-function queueSummary(leads) {
-  const summary = {
-    total: leads.length,
-    ready: 0,
-    blocked: 0,
-    topReason: '',
-    topReasonCount: 0
-  };
-  const reasons = new Map();
-
-  for (const lead of leads) {
-    if (lead.dialCheck?.allowed) {
-      summary.ready += 1;
-      continue;
-    }
-
-    summary.blocked += 1;
-    const reason = lead.dialCheck?.reason || 'Not ready';
-    reasons.set(reason, (reasons.get(reason) || 0) + 1);
-  }
-
-  for (const [reason, count] of reasons.entries()) {
-    if (count > summary.topReasonCount) {
-      summary.topReason = reason;
-      summary.topReasonCount = count;
-    }
-  }
-
-  return summary;
-}
-
-function nextQueueAction(summary) {
-  if (!summary.total) return 'Sync HubSpot or create a PowerList with matching owner and timezone.';
-  if (summary.ready) return `${summary.ready} lead${summary.ready === 1 ? '' : 's'} ready for dialing.`;
-
-  const reason = String(summary.topReason || '').toLowerCase();
-  if (reason.includes('provider error')) return 'If carrier approval is complete, click Retry Errors and then Start.';
-  if (reason.includes('consent')) return 'Update Dialer consent to Yes in HubSpot, then sync.';
-  if (reason.includes('do not call') || reason.includes('dnc')) return 'Review the DNC or do_not_call value before dialing.';
-  if (reason.includes('attempt')) return 'Use a fresh test contact or raise MAX_ATTEMPTS_PER_LEAD for testing.';
-  if (reason.includes('phone')) return 'Fix the contact phone number in HubSpot.';
-  if (reason.includes('campaign')) return 'Change the PowerList timezone or the contact TIME ZONE value.';
-  return summary.topReason || 'Queue is not ready.';
-}
-
-function renderQueueHealth(leads, campaign, providedSummary = null) {
-  if (!elements.queueHealth) return;
-  if (!campaign) {
-    elements.queueHealth.hidden = true;
-    elements.queueHealth.innerHTML = '';
-    return;
-  }
-
-  const summary = providedSummary || queueSummary(leads);
-  const readyClass = summary.ready ? 'ready' : 'blocked';
-  const topReason = summary.topReason
-    ? `${summary.topReasonCount} blocked: ${summary.topReason}`
-    : 'No blockers';
-  const session = currentSession(campaign);
-  const agentLineConnecting = campaign.status === 'running' && session && !session.agentConnectedAt;
-  const agentLineConnected = campaign.status === 'running' && session?.agentConnectedAt;
-  const actionClass = agentLineConnecting || agentLineConnected || summary.ready ? 'ready' : 'blocked';
-  const actionTitle = agentLineConnecting
-    ? 'Connecting agent audio'
-    : agentLineConnected
-      ? 'Agent audio connected'
-      : summary.ready ? 'Ready to start' : 'Needs attention';
-  const actionText = agentLineConnecting
-    ? 'Customer dialing starts after the agent audio session connects.'
-    : agentLineConnected
-      ? 'Agent remains connected while TruckX dials customers one by one.'
-      : nextQueueAction(summary);
-
-  elements.queueHealth.hidden = false;
-  elements.queueHealth.innerHTML = `
-    <div class="queue-metrics">
-      <div>
-        <strong>${escapeHtml(summary.total)}</strong>
-        <span>Total leads</span>
-      </div>
-      <div>
-        <strong>${escapeHtml(summary.ready)}</strong>
-        <span>Ready now</span>
-      </div>
-      <div>
-        <strong>${escapeHtml(summary.blocked)}</strong>
-        <span>Blocked</span>
-      </div>
-    </div>
-    <div class="queue-action ${actionClass}">
-      <strong>${escapeHtml(actionTitle)}</strong>
-      <span>${escapeHtml(topReason)}</span>
-      <span>${escapeHtml(actionText)}</span>
-    </div>
-  `;
 }
 
 function formatDuration(seconds) {
@@ -536,12 +403,10 @@ function renderCampaigns() {
     button.addEventListener('click', async () => {
       if (button.dataset.campaignId === selectedCampaignId) return;
       selectedCampaignId = button.dataset.campaignId;
-      selectedLeadPage = 0;
       selectedCampaignSnapshot = {
         campaignId: selectedCampaignId,
         loading: true
       };
-      state.leads = [];
       renderCampaigns();
       renderSelectedCampaign();
       await loadSelectedCampaignSnapshot();
@@ -555,8 +420,6 @@ function renderSelectedCampaign() {
     campaignSettingsDraft = { campaignId: '', dirty: false };
     elements.activeCampaignName.textContent = 'Queue';
     elements.activeCampaignMeta.textContent = 'No campaign selected';
-    renderQueueHealth([], null);
-    elements.leadRows.innerHTML = '<tr><td colspan="6">Create a campaign to load the queue.</td></tr>';
     elements.startButton.disabled = true;
     elements.stopButton.disabled = true;
     elements.deleteCampaignButton.disabled = true;
@@ -565,7 +428,6 @@ function renderSelectedCampaign() {
     elements.selectedCampaignCallerId.disabled = true;
     elements.syncHubSpotButton.disabled = true;
     elements.resetProviderErrorsButton.disabled = true;
-    elements.leadPagination.hidden = true;
     return;
   }
 
@@ -575,7 +437,6 @@ function renderSelectedCampaign() {
   const snapshotReady = snapshotMatches
     && !selectedCampaignSnapshot.loading
     && !snapshotError;
-  const campaignLeads = snapshotReady ? selectedCampaignSnapshot.leads || [] : [];
   const summary = snapshotReady ? selectedCampaignSnapshot.summary : null;
   elements.activeCampaignName.textContent = campaign.name;
   elements.activeCampaignMeta.textContent = `${owner?.name || 'Owner'} | ${campaign.status} | ${campaignTarget(campaign)} | ${campaign.maxParallelCalls} lines`;
@@ -597,68 +458,6 @@ function renderSelectedCampaign() {
   }
   elements.syncHubSpotButton.disabled = state.settings.leadSource !== 'hubspot';
   elements.resetProviderErrorsButton.disabled = !summary?.hasProviderErrors;
-
-  if (snapshotError) {
-    elements.queueHealth.hidden = false;
-    elements.queueHealth.innerHTML = `
-      <div class="queue-action blocked">
-        <strong>Queue unavailable</strong>
-        <span>${escapeHtml(snapshotError)}</span>
-      </div>
-    `;
-    elements.leadRows.innerHTML = '<tr><td colspan="6">Could not load leads. Click Refresh to try again.</td></tr>';
-    elements.leadPagination.hidden = true;
-    return;
-  }
-
-  if (!snapshotReady) {
-    elements.queueHealth.hidden = false;
-    elements.queueHealth.innerHTML = `
-      <div class="queue-action ready">
-        <strong>Loading queue</strong>
-        <span>Checking lead readiness for ${escapeHtml(owner?.name || 'this owner')}...</span>
-      </div>
-    `;
-    elements.leadRows.innerHTML = '<tr><td colspan="6">Loading leads...</td></tr>';
-    elements.leadPagination.hidden = true;
-    return;
-  }
-
-  renderQueueHealth(campaignLeads, campaign, summary);
-
-  if (!summary.total) {
-    elements.leadRows.innerHTML = '<tr><td colspan="6">No leads match this owner and timezone.</td></tr>';
-    elements.leadPagination.hidden = true;
-    return;
-  }
-
-  elements.leadRows.innerHTML = campaignLeads
-    .map((lead) => {
-      const check = lead.dialCheck || {};
-      const allowed = check.allowed ? statusPill('allowed', 'allowed') : statusPill('blocked', 'blocked');
-      return `
-        <tr>
-          <td>
-            <div class="lead-name">
-              <strong>${escapeHtml(lead.name)}</strong>
-              <span>${escapeHtml(lead.company || lead.email || '')}</span>
-            </div>
-          </td>
-          <td>${escapeHtml(lead.phone)}</td>
-          <td>${escapeHtml(lead.timeZoneLabel || lead.timeZone || '')}</td>
-          <td>${statusPill(lead.status)}</td>
-          <td>${escapeHtml(lead.attempts || 0)}</td>
-          <td>${allowed}<br><span>${escapeHtml(check.reason || '')}</span></td>
-        </tr>
-      `;
-    })
-    .join('');
-
-  const pagination = selectedCampaignSnapshot.pagination;
-  elements.leadPagination.hidden = false;
-  elements.leadPageStatus.textContent = `Showing ${pagination.start}-${pagination.end} of ${pagination.total} leads`;
-  elements.previousLeadPage.disabled = pagination.page <= 0;
-  elements.nextLeadPage.disabled = pagination.page >= pagination.pageCount - 1;
 }
 
 function renderCalls() {
@@ -962,7 +761,6 @@ async function loadSelectedCampaignSnapshot() {
   const campaign = selectedCampaign();
   if (!campaign) {
     selectedCampaignSnapshot = null;
-    state.leads = [];
     renderSelectedCampaign();
     return;
   }
@@ -970,7 +768,7 @@ async function loadSelectedCampaignSnapshot() {
   const requestId = ++snapshotRequestId;
   try {
     const snapshot = await api(
-      `/api/campaigns/${campaign.id}?page=${selectedLeadPage}&pageSize=${LEAD_PAGE_SIZE}`
+      `/api/campaigns/${campaign.id}?includeLeads=0`
     );
     if (requestId !== snapshotRequestId || selectedCampaignId !== campaign.id) return;
 
@@ -979,8 +777,6 @@ async function loadSelectedCampaignSnapshot() {
       campaignId: campaign.id,
       loading: false
     };
-    selectedLeadPage = snapshot.pagination?.page || 0;
-    state.leads = snapshot.leads || [];
     renderSelectedCampaign();
   } catch (error) {
     if (requestId !== snapshotRequestId || selectedCampaignId !== campaign.id) return;
@@ -989,7 +785,7 @@ async function loadSelectedCampaignSnapshot() {
       loading: false,
       error: error.message
     };
-    state.leads = [];
+    setNotice(`PowerList readiness check failed: ${error.message}`, 'error');
     renderSelectedCampaign();
   }
 }
@@ -1128,23 +924,6 @@ elements.dispositionForm.addEventListener('submit', async (event) => {
 });
 
 elements.refreshButton.addEventListener('click', loadState);
-
-elements.previousLeadPage.addEventListener('click', async () => {
-  if (selectedLeadPage <= 0) return;
-  selectedLeadPage -= 1;
-  selectedCampaignSnapshot = { campaignId: selectedCampaignId, loading: true };
-  renderSelectedCampaign();
-  await loadSelectedCampaignSnapshot();
-});
-
-elements.nextLeadPage.addEventListener('click', async () => {
-  const pageCount = selectedCampaignSnapshot?.pagination?.pageCount || 0;
-  if (selectedLeadPage >= pageCount - 1) return;
-  selectedLeadPage += 1;
-  selectedCampaignSnapshot = { campaignId: selectedCampaignId, loading: true };
-  renderSelectedCampaign();
-  await loadSelectedCampaignSnapshot();
-});
 
 elements.refreshCallerIdsButton.addEventListener('click', async () => {
   elements.refreshCallerIdsButton.disabled = true;

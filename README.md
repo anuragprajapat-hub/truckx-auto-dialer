@@ -17,7 +17,7 @@ This is a standalone autodialer prototype for a sales team calling US numbers. I
 - Lets agents manually dial or redial a US number through their connected browser audio session.
 - Adds a connected-call keypad for sending DTMF digits to automated phone menus.
 - Supports browser softphone mode so the agent can click Start, connect audio in Chrome, and stay connected while TruckX dials customers.
-- Adds TruckX logo assets, favicon, agent web login branding, and a startup splash screen.
+- Uses the official TruckX website wordmark for admin, agent, and web login branding.
 - Lets admins invite agents by name/email and HubSpot owner.
 - Lets agents log in directly through a browser link; the Chrome extension is optional/future HubSpot page integration.
 - Includes starter adapters for Twilio and Plivo so real calling can be wired next.
@@ -93,7 +93,9 @@ HubSpot contact synchronization retrieves every page for the selected owner usin
 
 When TruckX starts, it automatically performs a one-time recovery sync for existing PowerLists whose owner currently has no imported leads. PowerLists that already have leads are not reimported by this startup recovery.
 
-The admin portal loads lead readiness per PowerList in 100-lead pages. Queue totals are calculated server-side, so large owner lists remain fully countable and accessible without transferring or rendering every contact on each dashboard refresh.
+Campaign lead snapshots support 100-lead pages for agent workflows. Queue totals are calculated server-side, so large owner lists remain fully countable without transferring or rendering every contact on each dashboard refresh.
+
+The admin PowerList view keeps lead counts, readiness reasons, and contact rows hidden. TruckX still calculates readiness server-side so Start and Retry Errors remain correctly enabled or disabled. The displayed wordmark is the official logo asset from `truckx.com`.
 
 When the admin invites an agent and leaves the endpoint username/password blank, TruckX automatically creates a unique Plivo Endpoint and attaches it to the same Plivo application as the configured shared browser Endpoint. Set `PLIVO_APPLICATION_ID` only if TruckX cannot infer that application from `PLIVO_BROWSER_USERNAME`. Deleting an agent also removes an automatically managed Endpoint from Plivo.
 

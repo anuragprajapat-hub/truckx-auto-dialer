@@ -37,6 +37,13 @@ body {
   width: 230px;
 }
 
+.official-logo {
+  background: #071a2e;
+  border-radius: 8px;
+  object-fit: contain;
+  padding: 10px 14px;
+}
+
 h1,
 p {
   margin: 0;

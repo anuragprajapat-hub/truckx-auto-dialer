@@ -55,7 +55,8 @@ const mimeTypes = {
   '.js': 'text/javascript; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
   '.svg': 'image/svg+xml',
-  '.png': 'image/png'
+  '.png': 'image/png',
+  '.webp': 'image/webp'
 };
 
 function send(response, statusCode, body, headers = {}) {
@@ -607,8 +608,11 @@ async function handleApi(request, response, url) {
       hubspotEmptyCampaignOwners: emptyHubSpotCampaignOwnerCount(),
       hubspotAutoSyncSummary,
       connectedCallDtmf: typeof dialerEngine.voiceProvider.sendDigits === 'function',
-      adminLeadPageSize: 100,
+      campaignSnapshotDefaultPageSize: 100,
+      adminLeadPageSize: 0,
       adminStateIncludesLeads: false,
+      adminLeadDetailsVisible: false,
+      branding: 'official_truckx_website_wordmark',
       leadSource: config.leadSource,
       storage: storeBackend(),
       time: new Date().toISOString()
@@ -1064,7 +1068,8 @@ async function handleApi(request, response, url) {
     assertCampaignAccess(snapshotMatch[1], request.user);
     sendJson(response, dialerEngine.campaignSnapshot(snapshotMatch[1], {
       page: url.searchParams.get('page'),
-      pageSize: url.searchParams.get('pageSize')
+      pageSize: url.searchParams.get('pageSize'),
+      includeLeads: url.searchParams.get('includeLeads')
     }));
     return true;
   }

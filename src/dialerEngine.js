@@ -1056,6 +1056,9 @@ export class DialerEngine {
 
     const pageSize = Math.max(25, Math.min(200, Number(options.pageSize || 100)));
     const page = Math.max(0, Math.floor(Number(options.page || 0)));
+    const includeLeads = !['0', 'false', 'no'].includes(
+      String(options.includeLeads ?? '1').trim().toLowerCase()
+    );
     const start = page * pageSize;
     const end = start + pageSize;
     const dncNumbers = new Set((data.dncNumbers || []).map((item) => item.phone));
@@ -1084,7 +1087,7 @@ export class DialerEngine {
         reasons.set(reason, (reasons.get(reason) || 0) + 1);
       }
       if (lead.status === 'provider_error') hasProviderErrors = true;
-      if (total >= start && total < end) {
+      if (includeLeads && total >= start && total < end) {
         leads.push({ ...lead, dialCheck });
       }
       total += 1;

@@ -27,8 +27,11 @@ header {
 }
 
 header img {
-  height: 42px;
-  width: 42px;
+  background: #071a2e;
+  border-radius: 7px;
+  height: auto;
+  padding: 7px 9px;
+  width: 126px;
 }
 
 header span,
