@@ -581,7 +581,7 @@ async function handleApi(request, response, url) {
       plivoEndpointCount: endpointReadiness.endpointCount,
       automaticEndpointProvisioningReady: endpointReadiness.ready,
       defaultLeadStatusQueue: config.compliance.callableStatuses.length ? 'allowlist' : 'all_safe_statuses',
-      hubspotContactSync: 'all_owner_contacts',
+      hubspotContactSync: 'all_owner_contacts_with_optional_property_fallback',
       connectedCallDtmf: typeof dialerEngine.voiceProvider.sendDigits === 'function',
       leadSource: config.leadSource,
       storage: storeBackend(),
