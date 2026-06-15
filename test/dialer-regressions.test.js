@@ -20,6 +20,7 @@ const contacts = Array.from({ length: 1250 }, (_, index) => ({
 }));
 
 const requests = [];
+let verifiedCallerIdRecords = [];
 const hubspotServer = http.createServer(async (request, response) => {
   let rawBody = '';
   for await (const chunk of request) rawBody += chunk;
@@ -62,6 +63,14 @@ const hubspotServer = http.createServer(async (request, response) => {
 
   if (request.method === 'POST' && request.url === '/v1/Account/test-auth/Call/live-123/DTMF/') {
     response.end(JSON.stringify({ message: 'digits sent' }));
+    return;
+  }
+
+  if (request.method === 'GET' && request.url.startsWith('/v1/Account/test-auth/VerifiedCallerId/')) {
+    response.end(JSON.stringify({
+      objects: verifiedCallerIdRecords,
+      meta: { total_count: verifiedCallerIdRecords.length }
+    }));
     return;
   }
 
@@ -143,6 +152,47 @@ test('PowerList Lines can be updated after creation', () => {
   const updated = store.updateCampaign(campaign.id, { maxParallelCalls: 4 });
   assert.equal(updated.maxParallelCalls, 4);
   assert.equal(store.getStore().campaigns.find((item) => item.id === campaign.id).maxParallelCalls, 4);
+});
+
+test('a newly verified Plivo caller ID refreshes automatically after a cache miss', async () => {
+  const previous = {
+    voiceProvider: config.voiceProvider,
+    apiBaseUrl: config.plivo.apiBaseUrl,
+    authId: config.plivo.authId,
+    authToken: config.plivo.authToken
+  };
+  config.voiceProvider = 'plivo';
+  config.plivo.apiBaseUrl = `http://127.0.0.1:${address.port}`;
+  config.plivo.authId = 'test-auth';
+  config.plivo.authToken = 'test-token';
+  verifiedCallerIdRecords = [
+    { phone_number: '+16505550101', alias: 'First', country: 'US' }
+  ];
+
+  try {
+    const callerIds = await import('../src/voice/plivoCallerIds.js');
+    const initial = await callerIds.fetchPlivoVerifiedCallerIds({ refresh: true });
+    assert.equal(initial.callerIds.length, 1);
+
+    verifiedCallerIdRecords.push({
+      phone_number: '+16505550102',
+      alias: 'New agent',
+      country: 'US'
+    });
+    const cached = await callerIds.fetchPlivoVerifiedCallerIds();
+    assert.equal(cached.callerIds.length, 1);
+
+    const verified = await callerIds.assertPlivoVerifiedCallerId('+16505550102');
+    assert.equal(verified, '+16505550102');
+    const refreshed = await callerIds.fetchPlivoVerifiedCallerIds();
+    assert.equal(refreshed.callerIds.length, 2);
+  } finally {
+    config.voiceProvider = previous.voiceProvider;
+    config.plivo.apiBaseUrl = previous.apiBaseUrl;
+    config.plivo.authId = previous.authId;
+    config.plivo.authToken = previous.authToken;
+    verifiedCallerIdRecords = [];
+  }
 });
 
 test('voicemail resumes the campaign queue automatically', async () => {

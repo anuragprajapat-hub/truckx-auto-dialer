@@ -364,7 +364,7 @@ async function leadStatusOptionsForState() {
   }
 }
 
-async function verifiedCallerIdsForState() {
+async function verifiedCallerIdsForState(options = {}) {
   if (config.voiceProvider !== 'plivo') {
     return {
       callerIds: config.callerIdNumbers.map((phoneNumber) => ({
@@ -376,7 +376,7 @@ async function verifiedCallerIdsForState() {
   }
 
   try {
-    return await fetchPlivoVerifiedCallerIds();
+    return await fetchPlivoVerifiedCallerIds(options);
   } catch (error) {
     if (Date.now() - lastVerifiedCallerIdsErrorAt > 1000 * 60 * 5) {
       lastVerifiedCallerIdsErrorAt = Date.now();
@@ -591,7 +591,9 @@ async function handleApi(request, response, url) {
     const data = visibleState(getStore(), request.user);
     const leadStatusOptions = await leadStatusOptionsForState();
     const verifiedCallerIds = request.user?.role === 'admin'
-      ? await verifiedCallerIdsForState()
+      ? await verifiedCallerIdsForState({
+          refresh: url.searchParams.get('refreshCallerIds') === '1'
+        })
       : { callerIds: [], source: 'restricted' };
     const endpointReadiness = request.user?.role === 'admin'
       ? await endpointReadinessForState()

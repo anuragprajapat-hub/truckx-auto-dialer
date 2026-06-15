@@ -1,7 +1,7 @@
 import { config } from '../config.js';
 import { normalizeUsPhone } from '../compliance.js';
 
-const CACHE_MS = 1000 * 60 * 5;
+const CACHE_MS = 1000 * 30;
 const PAGE_SIZE = 20;
 const MAX_PAGES = 10;
 
@@ -81,7 +81,10 @@ export async function assertPlivoVerifiedCallerId(phoneNumber) {
   }
   if (config.voiceProvider !== 'plivo') return normalized;
 
-  const result = await fetchPlivoVerifiedCallerIds();
+  let result = await fetchPlivoVerifiedCallerIds();
+  if (!result.callerIds.some((callerId) => callerId.phoneNumber === normalized)) {
+    result = await fetchPlivoVerifiedCallerIds({ refresh: true });
+  }
   if (!result.callerIds.some((callerId) => callerId.phoneNumber === normalized)) {
     throw new Error(`${normalized} is not a verified caller ID in this Plivo account`);
   }

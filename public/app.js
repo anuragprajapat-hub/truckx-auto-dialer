@@ -52,6 +52,7 @@ const elements = {
   dncPhone: document.querySelector('#dncPhone'),
   dncReason: document.querySelector('#dncReason'),
   dncList: document.querySelector('#dncList'),
+  refreshCallerIdsButton: document.querySelector('#refreshCallerIdsButton'),
   refreshButton: document.querySelector('#refreshButton'),
   startButton: document.querySelector('#startButton'),
   stopButton: document.querySelector('#stopButton'),
@@ -884,8 +885,11 @@ function renderAgents() {
   });
 }
 
-async function loadState() {
-  [state, setup] = await Promise.all([api('/api/state'), api('/api/setup')]);
+async function loadState(options = {}) {
+  const statePath = options.refreshCallerIds
+    ? '/api/state?refreshCallerIds=1'
+    : '/api/state';
+  [state, setup] = await Promise.all([api(statePath), api('/api/setup')]);
   const campaign = selectedCampaign();
   if (campaign) {
     const snapshot = await api(`/api/campaigns/${campaign.id}`);
@@ -1000,6 +1004,22 @@ elements.dispositionForm.addEventListener('submit', async (event) => {
 });
 
 elements.refreshButton.addEventListener('click', loadState);
+
+elements.refreshCallerIdsButton.addEventListener('click', async () => {
+  elements.refreshCallerIdsButton.disabled = true;
+  try {
+    await loadState({ refreshCallerIds: true });
+    const callerIds = verifiedCallerIds();
+    setNotice(
+      `Loaded ${callerIds.length} verified caller ID${callerIds.length === 1 ? '' : 's'} directly from Plivo.`,
+      'success'
+    );
+  } catch (error) {
+    setNotice(`Plivo number refresh failed: ${error.message}`, 'error');
+  } finally {
+    elements.refreshCallerIdsButton.disabled = false;
+  }
+});
 
 elements.syncOwnersButton.addEventListener('click', async () => {
   try {
