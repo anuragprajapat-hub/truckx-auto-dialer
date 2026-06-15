@@ -32,10 +32,7 @@ function sleep(ms) {
 }
 
 export function persistentStorageRequired() {
-  if (String(process.env.REQUIRE_PERSISTENT_STORAGE || '').trim()) {
-    return enabled(process.env.REQUIRE_PERSISTENT_STORAGE);
-  }
-  return enabled(process.env.RENDER) || Boolean(process.env.RENDER_SERVICE_ID);
+  return enabled(process.env.REQUIRE_PERSISTENT_STORAGE);
 }
 
 function postgresConnectAttempts() {
