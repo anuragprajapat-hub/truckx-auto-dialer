@@ -17,7 +17,7 @@ This is a standalone autodialer prototype for a sales team calling US numbers. I
 - Lets agents manually dial or redial a US number through their connected browser audio session.
 - Adds a connected-call keypad for sending DTMF digits to automated phone menus.
 - Supports browser softphone mode so the agent can click Start, connect audio in Chrome, and stay connected while TruckX dials customers.
-- Uses the official TruckX website wordmark for admin, agent, and web login branding.
+- Uses the official TruckX wordmark and favicon in blue on transparent backgrounds across the admin, agent, web login, and extension surfaces.
 - Lets admins invite agents by name/email and HubSpot owner.
 - Lets agents log in directly through a browser link; the Chrome extension is optional/future HubSpot page integration.
 - Includes starter adapters for Twilio and Plivo so real calling can be wired next.

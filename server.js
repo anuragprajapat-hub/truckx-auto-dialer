@@ -612,7 +612,7 @@ async function handleApi(request, response, url) {
       adminLeadPageSize: 0,
       adminStateIncludesLeads: false,
       adminLeadDetailsVisible: false,
-      branding: 'official_truckx_website_wordmark',
+      branding: 'official_truckx_blue_wordmark_and_favicon',
       leadSource: config.leadSource,
       storage: storeBackend(),
       time: new Date().toISOString()
@@ -1341,7 +1341,7 @@ const server = http.createServer(async (request, response) => {
     }
 
     if (request.method === 'GET' && url.pathname === '/favicon.ico') {
-      response.writeHead(302, { Location: '/assets/truckx-mark.svg' });
+      response.writeHead(302, { Location: '/assets/truckx-favicon.png' });
       response.end();
       return;
     }

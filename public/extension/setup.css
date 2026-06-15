@@ -38,10 +38,7 @@ body {
 }
 
 .official-logo {
-  background: #071a2e;
-  border-radius: 8px;
   object-fit: contain;
-  padding: 10px 14px;
 }
 
 h1,
