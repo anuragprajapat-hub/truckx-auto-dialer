@@ -8,13 +8,15 @@
   --teal: #0879bd;
   --teal-dark: #075e90;
   --teal-soft: #e5f7fc;
+  --teal-glow: rgba(8, 121, 189, 0.15);
   --cyan-soft: #e8fbff;
   --amber: #9a6500;
   --amber-soft: #fff2d8;
   --rose: #b5384a;
   --rose-soft: #ffe6eb;
   --ink: #121821;
-  --shadow: 0 14px 35px rgba(17, 30, 44, 0.08);
+  --shadow: 0 18px 42px rgba(17, 30, 44, 0.09);
+  --shadow-soft: 0 8px 22px rgba(17, 30, 44, 0.06);
 }
 
 * {
@@ -27,7 +29,9 @@
 
 body {
   margin: 0;
-  background: var(--bg);
+  background:
+    radial-gradient(circle at top left, rgba(41, 189, 224, 0.14), transparent 34vw),
+    linear-gradient(180deg, #f8fcff 0%, var(--bg) 44%, #eef5f9 100%);
   color: var(--text);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
@@ -76,7 +80,7 @@ body {
   display: grid;
   grid-template-rows: auto 1fr;
   min-height: 100vh;
-  padding: 22px 10px;
+  padding: 24px 10px;
 }
 
 .brand-lockup {
@@ -100,7 +104,7 @@ body {
 
 .nav-item {
   border: 0;
-  border-radius: 8px;
+  border-radius: 12px;
   color: var(--ink);
   display: flex;
   justify-content: flex-start;
@@ -113,6 +117,7 @@ body {
   background: var(--cyan-soft);
   color: #0879bd;
   font-weight: 700;
+  box-shadow: inset 3px 0 0 var(--teal), var(--shadow-soft);
 }
 
 .main-shell {
@@ -129,7 +134,7 @@ button {
   border: 1px solid var(--line);
   background: #ffffff;
   color: var(--ink);
-  border-radius: 7px;
+  border-radius: 10px;
   min-height: 40px;
   padding: 9px 12px;
   cursor: pointer;
@@ -137,6 +142,7 @@ button {
 
 button:hover {
   border-color: var(--line-strong);
+  transform: translateY(-1px);
 }
 
 button:disabled {
@@ -151,8 +157,12 @@ button:disabled {
   gap: 24px;
   padding: 22px 28px 16px;
   border-bottom: 1px solid var(--line);
-  background: #ffffff;
-  box-shadow: 0 10px 30px rgba(8, 27, 45, 0.04);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 10px 30px rgba(8, 27, 45, 0.05);
+  position: sticky;
+  top: 0;
+  z-index: 20;
 }
 
 .top-tabs {
@@ -162,7 +172,7 @@ button:disabled {
 
 .tab-button {
   border: 0;
-  border-radius: 6px;
+  border-radius: 10px;
   color: #46576a;
   padding: 8px 10px;
 }
@@ -210,7 +220,8 @@ h3 {
   min-width: 92px;
   border: 1px solid var(--line);
   background: #ffffff;
-  border-radius: 8px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbfd 100%);
+  border-radius: 16px;
   box-shadow: var(--shadow);
   min-height: 70px;
   padding: 11px 13px;
@@ -268,7 +279,8 @@ h3 {
 .toolbar-panel {
   background: #ffffff;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 16px;
+  box-shadow: var(--shadow-soft);
   padding: 16px;
 }
 

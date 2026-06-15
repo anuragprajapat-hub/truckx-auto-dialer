@@ -22,6 +22,7 @@ const contacts = Array.from({ length: 1250 }, (_, index) => ({
 const requests = [];
 let verifiedCallerIdRecords = [];
 let unavailableSearchProperties = new Set();
+let hubspotPatchDelayMs = 0;
 const hubspotServer = http.createServer(async (request, response) => {
   let rawBody = '';
   for await (const chunk of request) rawBody += chunk;
@@ -54,6 +55,9 @@ const hubspotServer = http.createServer(async (request, response) => {
   }
 
   if (request.method === 'PATCH' && request.url === '/crm/v3/objects/contacts/123') {
+    if (hubspotPatchDelayMs) {
+      await new Promise((resolve) => setTimeout(resolve, hubspotPatchDelayMs));
+    }
     const properties = body.properties || {};
     if (Object.keys(properties).length > 1) {
       response.statusCode = 400;
@@ -69,6 +73,11 @@ const hubspotServer = http.createServer(async (request, response) => {
       message: 'Property does not exist',
       errors: [{ error: 'PROPERTY_DOESNT_EXIST' }]
     }));
+    return;
+  }
+
+  if (request.method === 'POST' && request.url === '/crm/v3/objects/calls') {
+    response.end(JSON.stringify({ id: 'call-log-123', properties: body.properties || {} }));
     return;
   }
 
@@ -378,6 +387,44 @@ test('saving a live-call disposition restarts a paused campaign', async () => {
 
   assert.equal(store.getStore().campaigns.find((item) => item.id === campaign.id).status, 'running');
   assert.equal(scheduledReason, 'disposition_saved');
+});
+
+test('saving a live-call disposition resumes before slow HubSpot writes finish', async () => {
+  const campaign = store.createCampaign({
+    ownerId: 'owner_demo_1',
+    name: 'Fast disposition resume',
+    maxParallelCalls: 1
+  });
+  const running = store.setCampaignStatus(campaign.id, 'running');
+  store.updateLead('lead_002', { hubspotId: '123' });
+  const call = store.addCall({
+    campaignId: campaign.id,
+    sessionId: running.currentSessionId,
+    leadId: 'lead_002',
+    leadName: 'Morgan Lee',
+    leadPhone: '+13125550144',
+    attempt: 1,
+    status: 'completed',
+    completedAt: new Date().toISOString(),
+    outcome: 'live_answer',
+    requiresDisposition: true
+  });
+  store.setCampaignStatus(campaign.id, 'paused');
+
+  const engine = new DialerEngine();
+  hubspotPatchDelayMs = 500;
+  try {
+    const startedAt = Date.now();
+    const result = await engine.applyDisposition(call.id, { status: 'FOLLOWUP', note: 'Call back tomorrow' });
+    const elapsed = Date.now() - startedAt;
+
+    assert.equal(store.getStore().campaigns.find((item) => item.id === campaign.id).status, 'running');
+    assert.equal(result.hubspotUpdate.queued, true);
+    assert.equal(result.hubspotCallLog.queued, true);
+    assert.ok(elapsed < 250, `Disposition waited ${elapsed}ms for HubSpot`);
+  } finally {
+    hubspotPatchDelayMs = 0;
+  }
 });
 
 test('a late machine callback corrects live answer to voicemail and resumes dialing', async () => {

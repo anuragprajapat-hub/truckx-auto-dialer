@@ -138,9 +138,14 @@ function renderDispositionOptions() {
 function hubspotUpdateWarning(result) {
   const update = result?.hubspotUpdate;
   if (!update) return '';
+  if (update.queued) return '';
   if (update.error) return update.error;
   if (update.partial) return (update.failures || []).join('; ') || 'Some HubSpot fields were not updated.';
   return '';
+}
+
+function hubspotSyncQueued(result) {
+  return Boolean(result?.hubspotUpdate?.queued || result?.hubspotCallLog?.queued);
 }
 
 function hubspotSyncMessage(result) {
@@ -900,8 +905,14 @@ elements.dispositionForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   const callId = elements.dispositionForm.dataset.callId;
   if (!callId) return;
+  const submitButton = elements.dispositionForm.querySelector('button[type="submit"]');
+  const originalText = submitButton?.textContent || 'Save outcome';
 
   try {
+    if (submitButton) {
+      submitButton.disabled = true;
+      submitButton.textContent = 'Saving...';
+    }
     const result = await api(`/api/calls/${callId}/disposition`, {
       method: 'POST',
       body: JSON.stringify({
@@ -914,12 +925,19 @@ elements.dispositionForm.addEventListener('submit', async (event) => {
     setNotice(
       warning
         ? `Outcome saved locally, but HubSpot reported: ${warning}`
-        : 'Lead status saved in HubSpot. TruckX will resume dialing when the queue is ready.',
+        : (hubspotSyncQueued(result)
+          ? 'Outcome saved. Dialing is resuming now while HubSpot sync finishes in the background.'
+          : 'Outcome saved. Dialing is resuming now.'),
       warning ? 'error' : 'success'
     );
     await loadState();
   } catch (error) {
     setNotice(`Status save failed: ${error.message}`, 'error');
+  } finally {
+    if (submitButton) {
+      submitButton.disabled = false;
+      submitButton.textContent = originalText;
+    }
   }
 });
 

@@ -686,6 +686,65 @@ export class DialerEngine {
     }
   }
 
+  runBackground(task, details = {}) {
+    setTimeout(() => {
+      task().catch((error) => {
+        addEvent('background_task_failed', error.message, details);
+      });
+    }, 0);
+  }
+
+  queueHubSpotCompletionSync(call, lead, outcome, patch, options = {}) {
+    if (config.leadSource !== 'hubspot' || !lead) return { skipped: true };
+
+    updateCall(call.id, {
+      hubspotSyncStatus: 'pending',
+      hubspotSyncError: '',
+      hubspotSyncQueuedAt: new Date().toISOString()
+    });
+
+    this.runBackground(async () => {
+      const hubspotUpdate = await this.updateHubSpotLeadSafe(
+        call,
+        lead,
+        patch,
+        options.updateEventType || 'hubspot_write_failed'
+      );
+      const hubspotCallLog = options.skipCallLog
+        ? { skipped: true }
+        : await this.createHubSpotCallLogSafe(
+          {
+            ...call,
+            dispositionStatus: options.dispositionStatus,
+            dispositionNote: options.dispositionNote
+          },
+          lead,
+          outcome,
+          options.callLogEventType || 'hubspot_call_log_failed'
+        );
+      const error = hubspotUpdate?.error || hubspotCallLog?.error || '';
+      updateCall(call.id, {
+        hubspotSyncStatus: error ? 'error' : 'complete',
+        hubspotSyncError: error,
+        hubspotSyncCompletedAt: new Date().toISOString()
+      });
+      if (!error) {
+        addEvent('hubspot_sync_completed', `HubSpot synced ${call.leadName}`, {
+          campaignId: call.campaignId,
+          callId: call.id,
+          leadId: lead.id
+        });
+      }
+    }, {
+      campaignId: call.campaignId,
+      callId: call.id,
+      leadId: lead.id,
+      source: 'hubspot_completion_sync'
+    });
+
+    return { queued: true };
+  }
+
   async completeCall(call, outcome, raw = {}) {
     const completedAt = new Date().toISOString();
     const leadStatus = outcomeToLeadStatus(outcome, call.attempt);
@@ -707,14 +766,13 @@ export class DialerEngine {
         lastOutcome: outcome
       });
 
-      await this.updateHubSpotLeadSafe(updatedCall, updatedLead, {
+      this.queueHubSpotCompletionSync(updatedCall, updatedLead, outcome, {
         status: leadStatus,
         lastOutcome: outcome,
         attempts: updatedLead.attempts
+      }, {
+        skipCallLog: requiresDisposition
       });
-      if (!requiresDisposition) {
-        await this.createHubSpotCallLogSafe(updatedCall, updatedLead, outcome);
-      }
     }
 
     addEvent('call_completed', `${call.leadName} ended as ${outcome}`, {
@@ -970,16 +1028,16 @@ export class DialerEngine {
       lastOutcome: status
     });
 
-    const hubspotUpdate = await this.updateHubSpotLeadSafe(updatedCall, updatedLead, {
+    const hubspotUpdate = this.queueHubSpotCompletionSync(updatedCall, updatedLead, status, {
       status,
       lastOutcome: status,
       attempts: updatedLead.attempts
-    }, 'hubspot_disposition_failed');
-    const hubspotCallLog = await this.createHubSpotCallLogSafe(
-      { ...updatedCall, dispositionStatus: status, dispositionNote: String(input.note || '').trim() },
-      updatedLead,
-      status
-    );
+    }, {
+      updateEventType: 'hubspot_disposition_failed',
+      dispositionStatus: status,
+      dispositionNote: String(input.note || '').trim()
+    });
+    const hubspotCallLog = { queued: true };
 
     addEvent('call_disposition_saved', `${call.leadName} set to ${status}`, {
       campaignId: call.campaignId,
