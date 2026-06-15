@@ -562,7 +562,9 @@ function campaignIdFromPath(pathname, action) {
 async function handleApi(request, response, url) {
   if (request.method === 'GET' && url.pathname === '/api/health') {
     const browserEndpoints = browserEndpointStatus();
-    const verifiedCallerIds = await verifiedCallerIdsForState();
+    const verifiedCallerIds = await verifiedCallerIdsForState({
+      refresh: url.searchParams.get('refreshCallerIds') === '1'
+    });
     const endpointReadiness = await endpointReadinessForState();
     sendJson(response, {
       ok: true,
@@ -575,6 +577,7 @@ async function handleApi(request, response, url) {
       perAgentBrowserEndpoints: browserEndpoints.perAgentCount,
       verifiedCallerIdCount: verifiedCallerIds.callerIds.length,
       verifiedCallerIdLookupReady: !verifiedCallerIds.error,
+      verifiedCallerIdSource: verifiedCallerIds.source,
       plivoEndpointCount: endpointReadiness.endpointCount,
       automaticEndpointProvisioningReady: endpointReadiness.ready,
       defaultLeadStatusQueue: config.compliance.callableStatuses.length ? 'allowlist' : 'all_safe_statuses',
