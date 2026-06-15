@@ -559,6 +559,19 @@ function campaignIdFromPath(pathname, action) {
   return match?.[1] || '';
 }
 
+function emptyHubSpotCampaignOwnerCount() {
+  if (config.leadSource !== 'hubspot') return 0;
+  const data = getStore();
+  const ownerIdsWithLeads = new Set(data.leads.map((lead) => lead.ownerId));
+  return new Set(data.campaigns
+    .filter((campaign) => (
+      campaign.status !== 'deleted'
+      && !campaign.deletedAt
+      && !ownerIdsWithLeads.has(campaign.ownerId)
+    ))
+    .map((campaign) => campaign.ownerId)).size;
+}
+
 async function handleApi(request, response, url) {
   if (request.method === 'GET' && url.pathname === '/api/health') {
     const browserEndpoints = browserEndpointStatus();
@@ -583,6 +596,7 @@ async function handleApi(request, response, url) {
       defaultLeadStatusQueue: config.compliance.callableStatuses.length ? 'allowlist' : 'all_safe_statuses',
       hubspotContactSync: 'all_owner_contacts_with_optional_property_fallback',
       hubspotEmptyCampaignAutoSync: true,
+      hubspotEmptyCampaignOwners: emptyHubSpotCampaignOwnerCount(),
       connectedCallDtmf: typeof dialerEngine.voiceProvider.sendDigits === 'function',
       leadSource: config.leadSource,
       storage: storeBackend(),
