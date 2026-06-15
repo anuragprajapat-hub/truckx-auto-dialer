@@ -618,6 +618,7 @@ async function handleApi(request, response, url) {
       hubspotEmptyCampaignOwners: emptyHubSpotCampaignOwnerCount(),
       hubspotAutoSyncSummary,
       connectedCallDtmf: typeof dialerEngine.voiceProvider.sendDigits === 'function',
+      manualDialPad: 'agent_always_visible_redial_ready_keypad',
       campaignSnapshotDefaultPageSize: 100,
       adminLeadPageSize: 0,
       adminStateIncludesLeads: false,

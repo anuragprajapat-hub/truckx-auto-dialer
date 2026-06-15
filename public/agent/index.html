@@ -103,13 +103,40 @@
 
             <section id="audioStatus" class="audio-status" hidden aria-live="polite"></section>
 
-            <form id="manualDialForm" class="manual-dial-form">
-              <label>
-                Manual dial or redial
-                <input id="manualDialPhone" inputmode="tel" placeholder="+1 555 123 4567" autocomplete="off">
-              </label>
-              <button id="manualDialButton" type="submit">Dial number</button>
-            </form>
+            <section class="manual-dial-card" aria-label="Manual dial pad">
+              <div class="manual-dial-heading">
+                <div>
+                  <span class="eyebrow">Manual dial</span>
+                  <h2>Dial pad</h2>
+                </div>
+                <span id="manualDialStatus">Start Audio before placing manual calls.</span>
+              </div>
+              <form id="manualDialForm" class="manual-dial-form">
+                <label>
+                  Phone number
+                  <input id="manualDialPhone" inputmode="tel" placeholder="+1 555 123 4567" autocomplete="off">
+                </label>
+                <button id="manualDialButton" type="submit">Dial number</button>
+              </form>
+              <div id="manualDialPad" class="manual-dial-pad" role="group" aria-label="Manual dial keypad">
+                <button type="button" data-manual-dial-key="1">1</button>
+                <button type="button" data-manual-dial-key="2">2</button>
+                <button type="button" data-manual-dial-key="3">3</button>
+                <button type="button" data-manual-dial-key="4">4</button>
+                <button type="button" data-manual-dial-key="5">5</button>
+                <button type="button" data-manual-dial-key="6">6</button>
+                <button type="button" data-manual-dial-key="7">7</button>
+                <button type="button" data-manual-dial-key="8">8</button>
+                <button type="button" data-manual-dial-key="9">9</button>
+                <button type="button" data-manual-dial-key="*">*</button>
+                <button type="button" data-manual-dial-key="0">0</button>
+                <button type="button" data-manual-dial-key="#">#</button>
+                <button type="button" data-manual-dial-action="clear">Clear</button>
+                <button type="button" data-manual-dial-action="backspace">Back</button>
+                <button type="submit" form="manualDialForm" class="manual-dial-pad-action">Call</button>
+              </div>
+              <p class="manual-dial-help">Use this for manual numbers and redial. For phone menus after a customer connects, use the popup dial pad.</p>
+            </section>
 
             <section id="dispositionPanel" class="disposition-panel" hidden>
               <div class="disposition-card">

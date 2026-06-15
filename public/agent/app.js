@@ -56,6 +56,8 @@ const elements = {
   manualDialForm: document.querySelector('#manualDialForm'),
   manualDialPhone: document.querySelector('#manualDialPhone'),
   manualDialButton: document.querySelector('#manualDialButton'),
+  manualDialPad: document.querySelector('#manualDialPad'),
+  manualDialStatus: document.querySelector('#manualDialStatus'),
   audioStatus: document.querySelector('#audioStatus'),
   dispositionPanel: document.querySelector('#dispositionPanel'),
   dispositionLead: document.querySelector('#dispositionLead'),
@@ -596,14 +598,95 @@ function renderCurrentCall() {
   });
 }
 
-function manualDialReady(campaign = selectedCampaign()) {
-  if (!campaign || campaign.status !== 'running') return false;
+function manualDialBlocker(campaign = selectedCampaign()) {
+  if (!campaign) return 'Select a PowerList before manual dialing.';
+  if (campaign.status !== 'running') {
+    return softphoneMode === 'browser'
+      ? 'Click Start Audio before manual dialing.'
+      : 'Click Start before manual dialing.';
+  }
   const session = currentSession(campaign);
   const hasActiveCall = callsForSelectedCampaign().some((call) => (
     ACTIVE_STATUSES.has(call.status) || call.requiresDisposition
   ));
-  const audioReady = softphoneMode !== 'browser' || softphoneCallActive;
-  return Boolean(session?.agentConnectedAt && audioReady && !hasActiveCall);
+  if (!session?.agentConnectedAt) {
+    return softphoneMode === 'browser'
+      ? 'Connect Audio first. Manual dial starts after the browser audio bridge is active.'
+      : 'Wait until the agent line is connected before manual dialing.';
+  }
+  if (softphoneMode === 'browser' && !softphoneCallActive) {
+    return 'Connect Audio first so the customer call can bridge to this browser.';
+  }
+  if (hasActiveCall) return 'Finish the current call and save the outcome before manual dialing.';
+  return '';
+}
+
+function manualDialReady(campaign = selectedCampaign()) {
+  return !manualDialBlocker(campaign);
+}
+
+function setManualDialStatus(message = '', kind = 'info') {
+  if (!elements.manualDialStatus) return;
+  elements.manualDialStatus.textContent = message || 'Ready for manual dial and redial.';
+  elements.manualDialStatus.className = kind === 'ready' ? 'ready' : kind === 'error' ? 'error' : '';
+}
+
+function updateManualDialControls(campaign = selectedCampaign(), options = {}) {
+  const blocker = manualDialBlocker(campaign);
+  const hasCampaign = Boolean(campaign);
+  elements.manualDialPhone.disabled = !hasCampaign;
+  elements.manualDialButton.disabled = !hasCampaign;
+  elements.manualDialButton.title = blocker || 'Dial this number using the connected agent audio session';
+  if (!options.preserveStatus) {
+    setManualDialStatus(blocker || 'Ready for manual dial and redial.', blocker ? 'info' : 'ready');
+  }
+
+  elements.manualDialPad?.querySelectorAll('button').forEach((button) => {
+    button.disabled = !hasCampaign;
+  });
+}
+
+function setManualDialBusy(isBusy) {
+  if (!isBusy) {
+    elements.manualDialButton.textContent = 'Dial number';
+    updateManualDialControls(undefined, { preserveStatus: true });
+    return;
+  }
+
+  elements.manualDialButton.disabled = isBusy;
+  elements.manualDialButton.textContent = 'Dialing...';
+  elements.manualDialPad?.querySelectorAll('button').forEach((button) => {
+    button.disabled = isBusy;
+  });
+}
+
+function appendManualDialKey(key) {
+  const value = String(elements.manualDialPhone.value || '');
+  const start = elements.manualDialPhone.selectionStart ?? value.length;
+  const end = elements.manualDialPhone.selectionEnd ?? value.length;
+  elements.manualDialPhone.value = `${value.slice(0, start)}${key}${value.slice(end)}`;
+  const nextPosition = start + key.length;
+  elements.manualDialPhone.focus();
+  elements.manualDialPhone.setSelectionRange?.(nextPosition, nextPosition);
+}
+
+function backspaceManualDial() {
+  const value = String(elements.manualDialPhone.value || '');
+  const start = elements.manualDialPhone.selectionStart ?? value.length;
+  const end = elements.manualDialPhone.selectionEnd ?? value.length;
+  if (start !== end) {
+    elements.manualDialPhone.value = `${value.slice(0, start)}${value.slice(end)}`;
+    elements.manualDialPhone.setSelectionRange?.(start, start);
+  } else if (start > 0) {
+    elements.manualDialPhone.value = `${value.slice(0, start - 1)}${value.slice(start)}`;
+    elements.manualDialPhone.setSelectionRange?.(start - 1, start - 1);
+  }
+  elements.manualDialPhone.focus();
+}
+
+function clearManualDial() {
+  elements.manualDialPhone.value = '';
+  elements.manualDialPhone.focus();
 }
 
 function renderConnectedCall() {
@@ -827,8 +910,7 @@ function renderCampaigns() {
     elements.campaignStatus = document.querySelector('#campaignStatus');
     elements.startButton.disabled = true;
     elements.stopButton.disabled = true;
-    elements.manualDialPhone.disabled = true;
-    elements.manualDialButton.disabled = true;
+    updateManualDialControls(null);
     renderLeadStatusFilter(null);
     return;
   }
@@ -849,12 +931,7 @@ function renderCampaigns() {
     : softphoneMode === 'browser' ? 'Start Audio' : 'Start';
   elements.startButton.disabled = connectAudio || canReconnectAudio ? false : ['running', 'connected'].includes(current.status);
   elements.stopButton.disabled = !['running', 'connected', 'paused'].includes(current.status);
-  const canManualDial = manualDialReady(current);
-  elements.manualDialPhone.disabled = !canManualDial;
-  elements.manualDialButton.disabled = !canManualDial;
-  elements.manualDialButton.title = canManualDial
-    ? 'Dial this number using the connected agent audio session'
-    : 'Start the PowerList, connect audio, and finish the current call first';
+  updateManualDialControls(current);
   renderLeadStatusFilter(current);
   renderSoftphoneStatus(current);
 }
@@ -951,37 +1028,68 @@ function renderCalls() {
     : '<div class="empty">No abandoned calls</div>';
 
   elements.recentCalls.querySelectorAll('[data-redial-phone]').forEach((button) => {
-    button.disabled = !manualDialReady();
     button.addEventListener('click', async () => {
-      elements.manualDialPhone.value = button.dataset.redialPhone || '';
-      await submitManualDial();
+      await handleRedial(button.dataset.redialPhone || '');
     });
   });
 }
 
-async function submitManualDial() {
-  const campaign = selectedCampaign();
-  if (!campaign) return;
-  const phone = String(elements.manualDialPhone.value || '').trim();
-  if (!phone) {
-    setNotice('Enter a US phone number to dial.', 'error');
+async function handleRedial(phone) {
+  const cleaned = String(phone || '').trim();
+  if (!cleaned) {
+    setNotice('This recent call does not have a phone number to redial.', 'error');
     return;
   }
 
-  elements.manualDialButton.disabled = true;
-  elements.manualDialButton.textContent = 'Dialing...';
+  elements.manualDialPhone.value = cleaned;
+  elements.manualDialPhone.focus();
+  elements.manualDialForm?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  const blocker = manualDialBlocker();
+  if (blocker) {
+    setManualDialStatus(blocker, 'info');
+    setNotice(`Ready to redial ${cleaned}. ${blocker}`, 'info');
+    return;
+  }
+
+  await submitManualDial(cleaned);
+}
+
+async function submitManualDial(phoneOverride = '') {
+  const campaign = selectedCampaign();
+  if (!campaign) return;
+  const phone = String(phoneOverride || elements.manualDialPhone.value || '').trim();
+  if (!phone) {
+    setNotice('Enter a US phone number to dial.', 'error');
+    setManualDialStatus('Enter a US phone number to dial.', 'error');
+    elements.manualDialPhone.focus();
+    return;
+  }
+
+  const blocker = manualDialBlocker(campaign);
+  if (blocker) {
+    setNotice(blocker, 'error');
+    setManualDialStatus(blocker, 'error');
+    if (campaign.status !== 'running' || !currentSession(campaign)?.agentConnectedAt) {
+      elements.startButton.focus();
+    }
+    return;
+  }
+
+  setManualDialBusy(true);
+  setManualDialStatus(`Dialing ${phone}...`, 'info');
   try {
     await api(`/api/campaigns/${campaign.id}/manual-dial`, {
       method: 'POST',
       body: JSON.stringify({ phone })
     });
     setNotice(`Dialing ${phone}.`, 'success');
+    setManualDialStatus(`Dialing ${phone}.`, 'ready');
     await loadState();
   } catch (error) {
     setNotice(error.message, 'error');
+    setManualDialStatus(error.message, 'error');
   } finally {
-    elements.manualDialButton.textContent = 'Dial number';
-    elements.manualDialButton.disabled = !manualDialReady();
+    setManualDialBusy(false);
   }
 }
 
@@ -1097,6 +1205,21 @@ elements.startButton.addEventListener('click', async () => {
 elements.manualDialForm?.addEventListener('submit', async (event) => {
   event.preventDefault();
   await submitManualDial();
+});
+
+elements.manualDialPad?.addEventListener('click', (event) => {
+  const button = event.target.closest('button');
+  if (!button || button.disabled) return;
+
+  const key = button.dataset.manualDialKey;
+  const action = button.dataset.manualDialAction;
+  if (key) {
+    appendManualDialKey(key);
+  } else if (action === 'backspace') {
+    backspaceManualDial();
+  } else if (action === 'clear') {
+    clearManualDial();
+  }
 });
 
 elements.connectedDialPad?.querySelectorAll('[data-dtmf]').forEach((button) => {
