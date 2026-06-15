@@ -38,14 +38,16 @@ const hubspotServer = http.createServer(async (request, response) => {
       response.end(JSON.stringify({ message: 'There was a problem with the request.' }));
       return;
     }
-    const offset = Number(body.after || 0);
-    const page = contacts.slice(offset, offset + Number(body.limit || 200));
-    const nextOffset = offset + page.length;
+    const filters = (body.filterGroups || []).flatMap((group) => group.filters || []);
+    const objectIdFilter = filters.find((filter) => filter.propertyName === 'hs_object_id');
+    const afterObjectId = Number(objectIdFilter?.value || 0);
+    const eligibleContacts = contacts.filter((contact) => Number(contact.id) > afterObjectId);
+    const page = eligibleContacts.slice(0, Number(body.limit || 200));
     response.end(JSON.stringify({
       total: contacts.length,
       results: page,
-      paging: nextOffset < contacts.length
-        ? { next: { after: String(nextOffset) } }
+      paging: page.length < eligibleContacts.length
+        ? { next: { after: String(Number(page.at(-1)?.id || 0)) } }
         : undefined
     }));
     return;
@@ -109,7 +111,7 @@ after(async () => {
   fs.rmSync(testCwd, { recursive: true, force: true });
 });
 
-test('HubSpot owner sync pages through every contact without a 1,000-contact cap', async () => {
+test('HubSpot owner sync keyset-pages through every contact without cursor caps', async () => {
   const leads = await hubspot.fetchContactsForOwner({
     id: 'owner-test',
     hubspotOwnerId: '42'
@@ -119,6 +121,14 @@ test('HubSpot owner sync pages through every contact without a 1,000-contact cap
   const searchRequests = requests.filter((item) => item.url === '/crm/v3/objects/contacts/search');
   assert.equal(searchRequests.length, 7);
   assert.deepEqual(searchRequests.map((item) => item.body.limit), [200, 200, 200, 200, 200, 200, 200]);
+  assert.ok(searchRequests.every((item) => !Object.hasOwn(item.body, 'after')));
+  assert.ok(searchRequests.every((item) => item.body.sorts?.[0] === 'hs_object_id'));
+  assert.deepEqual(
+    searchRequests.slice(1).map((item) => (
+      item.body.filterGroups[0].filters.find((filter) => filter.propertyName === 'hs_object_id')?.value
+    )),
+    ['200', '400', '600', '800', '1000', '1200']
+  );
 });
 
 test('HubSpot contact sync skips unavailable optional properties instead of losing the owner leads', async () => {

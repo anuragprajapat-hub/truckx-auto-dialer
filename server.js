@@ -602,7 +602,7 @@ async function handleApi(request, response, url) {
       plivoEndpointCount: endpointReadiness.endpointCount,
       automaticEndpointProvisioningReady: endpointReadiness.ready,
       defaultLeadStatusQueue: config.compliance.callableStatuses.length ? 'allowlist' : 'all_safe_statuses',
-      hubspotContactSync: 'all_owner_contacts_with_optional_property_fallback',
+      hubspotContactSync: 'all_owner_contacts_keyset_with_optional_property_fallback',
       hubspotEmptyCampaignAutoSync: true,
       hubspotEmptyCampaignOwners: emptyHubSpotCampaignOwnerCount(),
       hubspotAutoSyncSummary,

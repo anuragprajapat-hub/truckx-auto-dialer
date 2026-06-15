@@ -195,30 +195,38 @@ function contactSearchPropertySets() {
   };
 }
 
-function contactSearchBody(owner, properties, limit, after = '') {
+function contactSearchBody(owner, properties, limit, afterObjectId = '') {
+  const filters = [
+    {
+      propertyName: 'hubspot_owner_id',
+      operator: 'EQ',
+      value: owner.hubspotOwnerId
+    }
+  ];
+  if (afterObjectId) {
+    filters.push({
+      propertyName: 'hs_object_id',
+      operator: 'GT',
+      value: String(afterObjectId)
+    });
+  }
   const body = {
     filterGroups: [
       {
-        filters: [
-          {
-            propertyName: 'hubspot_owner_id',
-            operator: 'EQ',
-            value: owner.hubspotOwnerId
-          }
-        ]
+        filters
       }
     ],
     properties,
-    limit
+    limit,
+    sorts: ['hs_object_id']
   };
-  if (after) body.after = after;
   return body;
 }
 
-async function fetchContactSearchPage(owner, properties, limit, after = '') {
+async function fetchContactSearchPage(owner, properties, limit, afterObjectId = '') {
   return hubspotFetch('/crm/v3/objects/contacts/search', {
     method: 'POST',
-    body: JSON.stringify(contactSearchBody(owner, properties, limit, after))
+    body: JSON.stringify(contactSearchBody(owner, properties, limit, afterObjectId))
   });
 }
 
@@ -330,7 +338,7 @@ export async function fetchContactsForOwner(owner, limit = 0) {
   );
   const propertyResolution = await resolveContactSearchProperties(owner, firstPageLimit);
   const properties = propertyResolution.properties;
-  let after = '';
+  let afterObjectId = '';
   let firstPage = propertyResolution.firstPage;
 
   do {
@@ -340,14 +348,21 @@ export async function fetchContactsForOwner(owner, limit = 0) {
       owner,
       properties,
       pageLimit,
-      after
+      afterObjectId
     );
     firstPage = null;
 
-    contacts.push(...(result.results || []));
-    after = result.paging?.next?.after || '';
-    if (after) await sleep(250);
-  } while (after && contacts.length < maximum);
+    const records = result.results || [];
+    contacts.push(...records);
+    if (records.length < pageLimit || contacts.length >= maximum) break;
+
+    const nextObjectId = String(records.at(-1)?.id || '');
+    if (!nextObjectId || nextObjectId === afterObjectId) {
+      throw new Error('HubSpot contact pagination did not advance');
+    }
+    afterObjectId = nextObjectId;
+    await sleep(250);
+  } while (contacts.length < maximum);
 
   const mapped = contacts.slice(0, maximum).map((contact) => mapContact(contact, owner));
   Object.defineProperty(mapped, 'omittedProperties', {
