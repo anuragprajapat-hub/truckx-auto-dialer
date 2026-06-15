@@ -41,6 +41,14 @@ const publicDir = path.resolve(process.cwd(), 'public');
 let lastLeadStatusOptionsErrorAt = 0;
 let lastVerifiedCallerIdsErrorAt = 0;
 let lastEndpointReadinessErrorAt = 0;
+let hubspotAutoSyncSummary = {
+  status: 'pending',
+  attemptedOwners: 0,
+  importedOwners: 0,
+  zeroContactOwners: 0,
+  failedOwners: 0,
+  importedContacts: 0
+};
 const mimeTypes = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
@@ -597,6 +605,7 @@ async function handleApi(request, response, url) {
       hubspotContactSync: 'all_owner_contacts_with_optional_property_fallback',
       hubspotEmptyCampaignAutoSync: true,
       hubspotEmptyCampaignOwners: emptyHubSpotCampaignOwnerCount(),
+      hubspotAutoSyncSummary,
       connectedCallDtmf: typeof dialerEngine.voiceProvider.sendDigits === 'function',
       leadSource: config.leadSource,
       storage: storeBackend(),
@@ -1339,9 +1348,29 @@ const server = http.createServer(async (request, response) => {
 await initStore();
 dialerEngine.start();
 setTimeout(() => {
-  dialerEngine.syncEmptyHubSpotCampaigns().catch((error) => {
-    addEvent('hubspot_auto_sync_failed', error.message, { source: 'startup' });
-  });
+  dialerEngine.syncEmptyHubSpotCampaigns()
+    .then((result) => {
+      const results = result.results || [];
+      hubspotAutoSyncSummary = {
+        status: 'complete',
+        attemptedOwners: results.length,
+        importedOwners: results.filter((item) => item.count > 0).length,
+        zeroContactOwners: results.filter((item) => !item.error && item.count === 0).length,
+        failedOwners: results.filter((item) => item.error).length,
+        importedContacts: results.reduce((total, item) => total + Number(item.count || 0), 0)
+      };
+    })
+    .catch((error) => {
+      hubspotAutoSyncSummary = {
+        status: 'failed',
+        attemptedOwners: 0,
+        importedOwners: 0,
+        zeroContactOwners: 0,
+        failedOwners: 1,
+        importedContacts: 0
+      };
+      addEvent('hubspot_auto_sync_failed', error.message, { source: 'startup' });
+    });
 }, 1000);
 
 async function shutdown() {
