@@ -93,6 +93,8 @@ HubSpot contact synchronization retrieves every page for the selected owner usin
 
 When TruckX starts, it automatically performs a one-time recovery sync for existing PowerLists whose owner currently has no imported leads. PowerLists that already have leads are not reimported by this startup recovery.
 
+The admin portal loads lead readiness per PowerList in 100-lead pages. Queue totals are calculated server-side, so large owner lists remain fully countable and accessible without transferring or rendering every contact on each dashboard refresh.
+
 When the admin invites an agent and leaves the endpoint username/password blank, TruckX automatically creates a unique Plivo Endpoint and attaches it to the same Plivo application as the configured shared browser Endpoint. Set `PLIVO_APPLICATION_ID` only if TruckX cannot infer that application from `PLIVO_BROWSER_USERNAME`. Deleting an agent also removes an automatically managed Endpoint from Plivo.
 
 In browser mode, the PowerList `Lines` value controls predictive customer dialing and can be edited after creation. If `Lines` is `3`, TruckX can ring up to 3 customer numbers while the agent is idle in the browser audio session. As soon as one customer answers, TruckX cancels the remaining ringing calls and pauses new dialing until that conversation ends and the agent saves the after-call outcome. If another customer answers after the agent is already connected, TruckX hangs up that extra customer leg and records it as `abandoned` so it is visible in the agent and admin Live views. Voicemail and no-answer results do not stop the PowerList; the next eligible contacts are dialed automatically.

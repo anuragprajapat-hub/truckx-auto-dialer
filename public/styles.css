@@ -551,6 +551,15 @@ select {
   border-radius: 8px;
 }
 
+.lead-pagination {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  font-size: 12px;
+  justify-content: space-between;
+  padding-top: 12px;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;

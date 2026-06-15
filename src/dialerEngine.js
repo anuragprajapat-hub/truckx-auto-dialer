@@ -1049,28 +1049,83 @@ export class DialerEngine {
     return this.completeCall(call, outcome, raw);
   }
 
-  campaignSnapshot(campaignId) {
+  campaignSnapshot(campaignId, options = {}) {
     const data = getStore();
     const campaign = data.campaigns.find((item) => item.id === campaignId);
     if (!campaign) throw new Error('Campaign not found');
 
-    const leads = data.leads
-      .filter((lead) => lead.ownerId === campaign.ownerId)
-      .filter((lead) => matchesCampaignTimeZone(lead, campaign))
-      .filter((lead) => matchesCampaignLeadStatus(lead, campaign))
-      .map((lead) => ({
-        ...lead,
-        dialCheck: evaluateLeadForDial(lead, campaign, {
-          dncNumbers: new Set((data.dncNumbers || []).map((item) => item.phone))
-        })
-      }));
+    const pageSize = Math.max(25, Math.min(200, Number(options.pageSize || 100)));
+    const page = Math.max(0, Math.floor(Number(options.page || 0)));
+    const start = page * pageSize;
+    const end = start + pageSize;
+    const dncNumbers = new Set((data.dncNumbers || []).map((item) => item.phone));
+    const leads = [];
+    const reasons = new Map();
+    let total = 0;
+    let ready = 0;
+    let blocked = 0;
+    let hasProviderErrors = false;
+
+    for (const lead of data.leads) {
+      if (
+        lead.ownerId !== campaign.ownerId
+        || !matchesCampaignTimeZone(lead, campaign)
+        || !matchesCampaignLeadStatus(lead, campaign)
+      ) {
+        continue;
+      }
+
+      const dialCheck = evaluateLeadForDial(lead, campaign, { dncNumbers });
+      if (dialCheck.allowed) {
+        ready += 1;
+      } else {
+        blocked += 1;
+        const reason = dialCheck.reason || 'Not ready';
+        reasons.set(reason, (reasons.get(reason) || 0) + 1);
+      }
+      if (lead.status === 'provider_error') hasProviderErrors = true;
+      if (total >= start && total < end) {
+        leads.push({ ...lead, dialCheck });
+      }
+      total += 1;
+    }
+
+    let topReason = '';
+    let topReasonCount = 0;
+    for (const [reason, count] of reasons.entries()) {
+      if (count > topReasonCount) {
+        topReason = reason;
+        topReasonCount = count;
+      }
+    }
 
     const calls = data.calls.filter((call) => call.campaignId === campaign.id);
+    const pageCount = total ? Math.ceil(total / pageSize) : 0;
+    const normalizedPage = pageCount ? Math.min(page, pageCount - 1) : 0;
+    if (normalizedPage !== page) {
+      return this.campaignSnapshot(campaignId, { page: normalizedPage, pageSize });
+    }
 
     return {
       campaign,
       leads,
-      calls,
+      summary: {
+        total,
+        ready,
+        blocked,
+        topReason,
+        topReasonCount,
+        hasProviderErrors
+      },
+      pagination: {
+        page: normalizedPage,
+        pageSize,
+        pageCount,
+        total,
+        start: total ? normalizedPage * pageSize + 1 : 0,
+        end: Math.min(end, total)
+      },
+      calls: calls.slice(0, 100),
       activeCalls: calls.filter((call) => ACTIVE_STATUSES.has(call.status)),
       events: data.events.filter((event) => event.details?.campaignId === campaign.id).slice(0, 30)
     };

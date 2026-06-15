@@ -607,6 +607,8 @@ async function handleApi(request, response, url) {
       hubspotEmptyCampaignOwners: emptyHubSpotCampaignOwnerCount(),
       hubspotAutoSyncSummary,
       connectedCallDtmf: typeof dialerEngine.voiceProvider.sendDigits === 'function',
+      adminLeadPageSize: 100,
+      adminStateIncludesLeads: false,
       leadSource: config.leadSource,
       storage: storeBackend(),
       time: new Date().toISOString()
@@ -654,7 +656,7 @@ async function handleApi(request, response, url) {
       },
       owners: data.owners,
       campaigns: data.campaigns,
-      leads: data.leads,
+      leads: [],
       agents: safeAgents(data.agents || []),
       agentInvites: request.user?.role === 'admin' ? (data.agentInvites || []).slice(0, 100) : [],
       reports: {
@@ -1060,7 +1062,10 @@ async function handleApi(request, response, url) {
   const snapshotMatch = url.pathname.match(/^\/api\/campaigns\/([^/]+)$/);
   if (request.method === 'GET' && snapshotMatch) {
     assertCampaignAccess(snapshotMatch[1], request.user);
-    sendJson(response, dialerEngine.campaignSnapshot(snapshotMatch[1]));
+    sendJson(response, dialerEngine.campaignSnapshot(snapshotMatch[1], {
+      page: url.searchParams.get('page'),
+      pageSize: url.searchParams.get('pageSize')
+    }));
     return true;
   }
 

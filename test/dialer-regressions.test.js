@@ -176,6 +176,25 @@ test('startup HubSpot recovery imports leads for existing empty PowerLists once 
     store.getStore().leads.filter((lead) => lead.ownerId === 'owner-auto-sync').length,
     1250
   );
+
+  const snapshot = engine.campaignSnapshot(campaign.id, { page: 1, pageSize: 100 });
+  assert.deepEqual(snapshot.summary, {
+    total: 1250,
+    ready: 1250,
+    blocked: 0,
+    topReason: '',
+    topReasonCount: 0,
+    hasProviderErrors: false
+  });
+  assert.equal(snapshot.leads.length, 100);
+  assert.deepEqual(snapshot.pagination, {
+    page: 1,
+    pageSize: 100,
+    pageCount: 13,
+    total: 1250,
+    start: 101,
+    end: 200
+  });
 });
 
 test('missing optional HubSpot properties do not turn a successful status update into an error', async () => {
