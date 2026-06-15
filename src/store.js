@@ -22,11 +22,31 @@ function enabled(value) {
   return ['1', 'true', 'yes', 'on'].includes(String(value || '').trim().toLowerCase());
 }
 
+function numberFromEnv(name, fallback) {
+  const value = Number(process.env[name]);
+  return Number.isFinite(value) ? value : fallback;
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export function persistentStorageRequired() {
   if (String(process.env.REQUIRE_PERSISTENT_STORAGE || '').trim()) {
     return enabled(process.env.REQUIRE_PERSISTENT_STORAGE);
   }
   return enabled(process.env.RENDER) || Boolean(process.env.RENDER_SERVICE_ID);
+}
+
+function postgresConnectAttempts() {
+  return Math.max(1, Math.min(60, numberFromEnv(
+    'POSTGRES_CONNECT_ATTEMPTS',
+    persistentStorageRequired() ? 12 : 1
+  )));
+}
+
+function postgresConnectDelayMs() {
+  return Math.max(250, Math.min(15000, numberFromEnv('POSTGRES_CONNECT_DELAY_MS', 5000)));
 }
 
 function seedStore() {
@@ -263,17 +283,28 @@ async function initPostgresStore() {
 export async function initStore() {
   if (initialized) return;
   if (process.env.DATABASE_URL) {
-    try {
-      await initPostgresStore();
-      initialized = true;
-      return;
-    } catch (error) {
-      lastPersistenceError = error.message;
-      pool = null;
-      if (persistentStorageRequired()) {
-        throw new Error(`Persistent Postgres storage is required but unavailable: ${error.message}`);
+    const attempts = postgresConnectAttempts();
+    for (let attempt = 1; attempt <= attempts; attempt += 1) {
+      try {
+        await initPostgresStore();
+        initialized = true;
+        return;
+      } catch (error) {
+        lastPersistenceError = error.message;
+        if (pool) {
+          await pool.end().catch(() => {});
+        }
+        pool = null;
+        if (attempt < attempts) {
+          console.error(`Postgres store unavailable; retrying ${attempt}/${attempts}: ${error.message}`);
+          await sleep(postgresConnectDelayMs());
+          continue;
+        }
+        if (persistentStorageRequired()) {
+          throw new Error(`Persistent Postgres storage is required but unavailable: ${error.message}`);
+        }
+        console.error(`Postgres store unavailable, falling back to local file: ${error.message}`);
       }
-      console.error(`Postgres store unavailable, falling back to local file: ${error.message}`);
     }
   }
 

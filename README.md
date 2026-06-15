@@ -10,6 +10,8 @@ The included `render.yaml` provisions `truckx-auto-dialer-db`, connects its inte
 
 For an existing service that is not managed by the Blueprint, create a Render Postgres database and set its internal connection string as the service's `DATABASE_URL`, then set `REQUIRE_PERSISTENT_STORAGE=true`.
 
+On Render, PostgreSQL startup is retried before the app exits. Tune this with `POSTGRES_CONNECT_ATTEMPTS` and `POSTGRES_CONNECT_DELAY_MS` if the database needs more time during deploys.
+
 The Blueprint uses Render's Free Postgres plan for testing. Render expires Free Postgres databases after 30 days, so upgrade the database before production use.
 
 ## What It Does Now
