@@ -330,7 +330,7 @@ async function resolveContactSearchProperties(owner, firstPageLimit) {
 }
 
 export async function fetchContactsForOwner(owner, limit = 0) {
-  const contacts = [];
+  const leads = [];
   const maximum = Number(limit) > 0 ? Math.floor(Number(limit)) : Number.POSITIVE_INFINITY;
   const firstPageLimit = Math.min(
     CONTACT_PAGE_SIZE,
@@ -342,7 +342,7 @@ export async function fetchContactsForOwner(owner, limit = 0) {
   let firstPage = propertyResolution.firstPage;
 
   do {
-    const remaining = Number.isFinite(maximum) ? maximum - contacts.length : CONTACT_PAGE_SIZE;
+    const remaining = Number.isFinite(maximum) ? maximum - leads.length : CONTACT_PAGE_SIZE;
     const pageLimit = Math.min(CONTACT_PAGE_SIZE, Math.max(1, remaining));
     const result = firstPage || await fetchContactSearchPage(
       owner,
@@ -353,8 +353,8 @@ export async function fetchContactsForOwner(owner, limit = 0) {
     firstPage = null;
 
     const records = result.results || [];
-    contacts.push(...records);
-    if (records.length < pageLimit || contacts.length >= maximum) break;
+    leads.push(...records.map((contact) => mapContact(contact, owner)));
+    if (records.length < pageLimit || leads.length >= maximum) break;
 
     const nextObjectId = String(records.at(-1)?.id || '');
     if (!nextObjectId || nextObjectId === afterObjectId) {
@@ -362,9 +362,9 @@ export async function fetchContactsForOwner(owner, limit = 0) {
     }
     afterObjectId = nextObjectId;
     await sleep(250);
-  } while (contacts.length < maximum);
+  } while (leads.length < maximum);
 
-  const mapped = contacts.slice(0, maximum).map((contact) => mapContact(contact, owner));
+  const mapped = Number.isFinite(maximum) ? leads.slice(0, maximum) : leads;
   Object.defineProperty(mapped, 'omittedProperties', {
     value: propertyResolution.omittedProperties,
     enumerable: false

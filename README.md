@@ -2,6 +2,16 @@
 
 This is a standalone autodialer prototype for a sales team calling US numbers. It is separate from the sales dashboard and starts in mock mode so the campaign flow can be tested without spending money on calls.
 
+## Production Persistence
+
+Production must use PostgreSQL. Render's default service filesystem is disposable, so agents, invitations, PowerLists, call history, and imported leads stored only in `data/store.json` are lost whenever the service restarts or redeploys.
+
+The included `render.yaml` provisions `truckx-auto-dialer-db`, connects its internal URL as `DATABASE_URL`, and sets `REQUIRE_PERSISTENT_STORAGE=true`. With that guard enabled, the service refuses to start instead of silently using disposable file storage when PostgreSQL is unavailable.
+
+For an existing service that is not managed by the Blueprint, create a Render Postgres database and set its internal connection string as the service's `DATABASE_URL`, then set `REQUIRE_PERSISTENT_STORAGE=true`.
+
+The Blueprint uses Render's Free Postgres plan for testing. Render expires Free Postgres databases after 30 days, so upgrade the database before production use.
+
 ## What It Does Now
 
 - Creates owner-based campaigns.

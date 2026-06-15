@@ -3,7 +3,9 @@ import path from 'node:path';
 import { randomBytes, randomUUID } from 'node:crypto';
 import pg from 'pg';
 
-const storePath = path.resolve(process.cwd(), 'data', 'store.json');
+const storePath = path.resolve(
+  process.env.STORE_PATH || path.join(process.cwd(), 'data', 'store.json')
+);
 const storeId = 'default';
 const { Pool } = pg;
 const ACTIVE_CALL_STATUSES = new Set(['dialing', 'queued', 'ringing', 'in_progress']);
@@ -12,6 +14,17 @@ let cachedStore = null;
 let pool = null;
 let initialized = false;
 let writeQueue = Promise.resolve();
+let writeInFlight = false;
+let pendingPostgresSnapshot = '';
+let lastPersistenceError = '';
+
+function enabled(value) {
+  return ['1', 'true', 'yes', 'on'].includes(String(value || '').trim().toLowerCase());
+}
+
+export function persistentStorageRequired() {
+  return enabled(process.env.REQUIRE_PERSISTENT_STORAGE);
+}
 
 function seedStore() {
   const now = new Date().toISOString();
@@ -185,6 +198,7 @@ function postgresSsl() {
 }
 
 async function writePostgresStore(data) {
+  const payload = typeof data === 'string' ? data : JSON.stringify(data);
   await pool.query(
     `
       insert into truckx_app_store (id, data, updated_at)
@@ -192,8 +206,31 @@ async function writePostgresStore(data) {
       on conflict (id)
       do update set data = excluded.data, updated_at = now()
     `,
-    [storeId, JSON.stringify(data)]
+    [storeId, payload]
   );
+  lastPersistenceError = '';
+}
+
+function queuePostgresWrite(data) {
+  pendingPostgresSnapshot = JSON.stringify(data);
+  if (writeInFlight) return;
+
+  writeInFlight = true;
+  writeQueue = (async () => {
+    while (pendingPostgresSnapshot) {
+      const snapshot = pendingPostgresSnapshot;
+      pendingPostgresSnapshot = '';
+      try {
+        await writePostgresStore(snapshot);
+      } catch (error) {
+        lastPersistenceError = error.message;
+        console.error(`Postgres store write failed: ${error.message}`);
+      }
+    }
+  })().finally(() => {
+    writeInFlight = false;
+    if (pendingPostgresSnapshot) queuePostgresWrite(cachedStore);
+  });
 }
 
 async function initPostgresStore() {
@@ -228,9 +265,17 @@ export async function initStore() {
       initialized = true;
       return;
     } catch (error) {
-      console.error(`Postgres store unavailable, falling back to local file: ${error.message}`);
+      lastPersistenceError = error.message;
       pool = null;
+      if (persistentStorageRequired()) {
+        throw new Error(`Persistent Postgres storage is required but unavailable: ${error.message}`);
+      }
+      console.error(`Postgres store unavailable, falling back to local file: ${error.message}`);
     }
+  }
+
+  if (persistentStorageRequired()) {
+    throw new Error('Persistent storage is required but DATABASE_URL is not configured');
   }
 
   cachedStore = readFileStore();
@@ -241,8 +286,23 @@ export function storeBackend() {
   return pool ? 'postgres' : 'file';
 }
 
+export function storeDiagnostics() {
+  const backend = storeBackend();
+  const required = persistentStorageRequired();
+  const persistent = backend === 'postgres' || enabled(process.env.FILE_STORE_PERSISTENT);
+  return {
+    backend,
+    required,
+    persistent,
+    ready: Boolean(initialized && (!required || persistent) && !lastPersistenceError),
+    lastError: lastPersistenceError
+  };
+}
+
 export async function flushStore() {
-  await writeQueue;
+  while (writeInFlight || pendingPostgresSnapshot) {
+    await writeQueue;
+  }
 }
 
 export async function closeStore() {
@@ -264,12 +324,7 @@ function write(data) {
     return data;
   }
 
-  const snapshot = JSON.parse(JSON.stringify(data));
-  writeQueue = writeQueue
-    .then(() => writePostgresStore(snapshot))
-    .catch((error) => {
-      console.error(`Postgres store write failed: ${error.message}`);
-    });
+  queuePostgresWrite(data);
   return data;
 }
 

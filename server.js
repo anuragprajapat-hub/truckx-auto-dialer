@@ -31,6 +31,7 @@ import {
   removeDncNumber,
   resetProviderErrorsForCampaign,
   storeBackend,
+  storeDiagnostics,
   touchAgent,
   updateAgentInviteEmailStatus,
   updateCampaign,
@@ -154,6 +155,7 @@ function setupStatus() {
     || (config.voiceProvider === 'twilio' && Boolean(config.twilio.accountSid && config.twilio.authToken))
     || (config.voiceProvider === 'plivo' && Boolean(config.plivo.authId && config.plivo.authToken));
   const browserEndpoints = browserEndpointStatus();
+  const storage = storeDiagnostics();
 
   return {
     appName: 'TruckX Auto Dialer',
@@ -223,9 +225,12 @@ function setupStatus() {
       {
         id: 'storage',
         label: 'Storage',
-        ok: true,
-        value: storeBackend(),
-        message: storeBackend() === 'postgres' ? 'Render PostgreSQL is active' : 'Local file storage is active'
+        ok: storage.ready && storage.persistent,
+        value: storage.backend,
+        message: storage.lastError
+          || (storage.persistent
+            ? 'Persistent storage is active'
+            : 'Disposable local storage is active. Agents and PowerLists will be lost on restart.')
       },
       {
         id: 'dnc',
@@ -583,13 +588,16 @@ function emptyHubSpotCampaignOwnerCount() {
 
 async function handleApi(request, response, url) {
   if (request.method === 'GET' && url.pathname === '/api/health') {
+    const storage = storeDiagnostics();
+    const memory = process.memoryUsage();
+    const data = getStore();
     const browserEndpoints = browserEndpointStatus();
     const verifiedCallerIds = await verifiedCallerIdsForState({
       refresh: url.searchParams.get('refreshCallerIds') === '1'
     });
     const endpointReadiness = await endpointReadinessForState();
     sendJson(response, {
-      ok: true,
+      ok: storage.ready,
       appName: 'TruckX Auto Dialer',
       provider: config.voiceProvider,
       providerAccount: config.voiceProvider === 'plivo' ? maskedValue(config.plivo.authId) : '',
@@ -614,9 +622,25 @@ async function handleApi(request, response, url) {
       adminLeadDetailsVisible: false,
       branding: 'official_truckx_blue_wordmark_and_favicon',
       leadSource: config.leadSource,
-      storage: storeBackend(),
+      storage: storage.backend,
+      storagePersistent: storage.persistent,
+      storageRequired: storage.required,
+      storageReady: storage.ready,
+      storageError: storage.lastError,
+      storeCounts: {
+        owners: data.owners.length,
+        agents: data.agents.length,
+        campaigns: data.campaigns.filter((campaign) => campaign.status !== 'deleted' && !campaign.deletedAt).length,
+        leads: data.leads.length,
+        calls: data.calls.length
+      },
+      memoryMb: {
+        rss: Math.round(memory.rss / 1024 / 1024),
+        heapUsed: Math.round(memory.heapUsed / 1024 / 1024),
+        heapTotal: Math.round(memory.heapTotal / 1024 / 1024)
+      },
       time: new Date().toISOString()
-    });
+    }, storage.ready ? 200 : 503);
     return true;
   }
 

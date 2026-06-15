@@ -5,9 +5,16 @@ services:
     plan: free
     buildCommand: npm install
     startCommand: node server.js
+    healthCheckPath: /api/health
     envVars:
       - key: NODE_VERSION
         value: 24
+      - key: DATABASE_URL
+        fromDatabase:
+          name: truckx-auto-dialer-db
+          property: connectionString
+      - key: REQUIRE_PERSISTENT_STORAGE
+        value: "true"
       - key: LEAD_SOURCE
         value: hubspot
       - key: APP_USERNAME
@@ -20,3 +27,10 @@ services:
         value: "18:00"
       - key: MAX_ATTEMPTS_PER_LEAD
         value: "3"
+
+databases:
+  - name: truckx-auto-dialer-db
+    plan: free
+    databaseName: truckx_auto_dialer
+    user: truckx_auto_dialer
+    ipAllowList: []

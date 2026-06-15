@@ -111,6 +111,35 @@ after(async () => {
   fs.rmSync(testCwd, { recursive: true, force: true });
 });
 
+test('persistent storage guard marks file storage as unavailable when required', () => {
+  const original = process.env.REQUIRE_PERSISTENT_STORAGE;
+  process.env.REQUIRE_PERSISTENT_STORAGE = 'true';
+  try {
+    assert.equal(store.persistentStorageRequired(), true);
+    assert.deepEqual(store.storeDiagnostics(), {
+      backend: 'file',
+      required: true,
+      persistent: false,
+      ready: false,
+      lastError: ''
+    });
+  } finally {
+    if (original === undefined) {
+      delete process.env.REQUIRE_PERSISTENT_STORAGE;
+    } else {
+      process.env.REQUIRE_PERSISTENT_STORAGE = original;
+    }
+  }
+});
+
+test('Render Blueprint connects the service to persistent Postgres storage', () => {
+  const blueprint = fs.readFileSync(path.join(originalCwd, 'render.yaml'), 'utf8');
+  assert.match(blueprint, /key:\s*DATABASE_URL[\s\S]*fromDatabase:/);
+  assert.match(blueprint, /key:\s*REQUIRE_PERSISTENT_STORAGE[\s\S]*value:\s*"true"/);
+  assert.match(blueprint, /databases:[\s\S]*name:\s*truckx-auto-dialer-db/);
+  assert.match(blueprint, /healthCheckPath:\s*\/api\/health/);
+});
+
 test('HubSpot owner sync keyset-pages through every contact without cursor caps', async () => {
   const leads = await hubspot.fetchContactsForOwner({
     id: 'owner-test',
