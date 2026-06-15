@@ -21,6 +21,7 @@ const contacts = Array.from({ length: 1250 }, (_, index) => ({
 
 const requests = [];
 let verifiedCallerIdRecords = [];
+let unavailableSearchProperties = new Set();
 const hubspotServer = http.createServer(async (request, response) => {
   let rawBody = '';
   for await (const chunk of request) rawBody += chunk;
@@ -29,6 +30,14 @@ const hubspotServer = http.createServer(async (request, response) => {
 
   response.setHeader('Content-Type', 'application/json');
   if (request.method === 'POST' && request.url === '/crm/v3/objects/contacts/search') {
+    const unavailable = (body.properties || []).find((property) => (
+      unavailableSearchProperties.has(property)
+    ));
+    if (unavailable) {
+      response.statusCode = 400;
+      response.end(JSON.stringify({ message: 'There was a problem with the request.' }));
+      return;
+    }
     const offset = Number(body.after || 0);
     const page = contacts.slice(offset, offset + Number(body.limit || 200));
     const nextOffset = offset + page.length;
@@ -110,6 +119,26 @@ test('HubSpot owner sync pages through every contact without a 1,000-contact cap
   const searchRequests = requests.filter((item) => item.url === '/crm/v3/objects/contacts/search');
   assert.equal(searchRequests.length, 7);
   assert.deepEqual(searchRequests.map((item) => item.body.limit), [200, 200, 200, 200, 200, 200, 200]);
+});
+
+test('HubSpot contact sync skips unavailable optional properties instead of losing the owner leads', async () => {
+  unavailableSearchProperties = new Set(['last_call_outcome', 'dialer_attempts']);
+  try {
+    const leads = await hubspot.fetchContactsForOwner({
+      id: 'owner-missing-properties',
+      hubspotOwnerId: '43'
+    });
+
+    assert.equal(leads.length, 1250);
+    assert.deepEqual(leads.omittedProperties.sort(), ['dialer_attempts', 'last_call_outcome']);
+    const successfulRequests = requests.filter((item) => (
+      item.url === '/crm/v3/objects/contacts/search'
+      && !(item.body.properties || []).some((property) => unavailableSearchProperties.has(property))
+    ));
+    assert.ok(successfulRequests.some((item) => item.body.limit === 200));
+  } finally {
+    unavailableSearchProperties = new Set();
+  }
 });
 
 test('missing optional HubSpot properties do not turn a successful status update into an error', async () => {

@@ -142,6 +142,21 @@ function hubspotUpdateWarning(result) {
   return '';
 }
 
+function hubspotSyncMessage(result) {
+  const count = result?.count || 0;
+  const resetCount = result?.providerErrorsReset || 0;
+  const omittedProperties = result?.omittedProperties || [];
+  return [
+    count
+      ? `Synced ${count} HubSpot contact(s) for this owner.`
+      : 'Synced HubSpot, but found 0 contacts for this owner. Check that contacts have this HubSpot owner.',
+    resetCount ? `Cleared ${resetCount} old provider error lead(s).` : '',
+    omittedProperties.length
+      ? `Skipped unavailable optional properties: ${omittedProperties.join(', ')}.`
+      : ''
+  ].filter(Boolean).join(' ');
+}
+
 async function api(path, options = {}) {
   const response = await fetch(path, {
     ...options,
@@ -944,7 +959,19 @@ elements.campaignForm.addEventListener('submit', async (event) => {
       body: JSON.stringify(Object.fromEntries(form))
     });
     selectedCampaignId = campaign.id;
-    setNotice(`PowerList created with caller ID ${campaign.callerIdNumber}.`, 'success');
+    let syncMessage = '';
+    if (state.settings.leadSource === 'hubspot') {
+      try {
+        const syncResult = await api(`/api/campaigns/${campaign.id}/sync-hubspot`, { method: 'POST' });
+        syncMessage = hubspotSyncMessage(syncResult);
+      } catch (error) {
+        syncMessage = `HubSpot sync failed: ${error.message}`;
+      }
+    }
+    setNotice(
+      `PowerList created with caller ID ${campaign.callerIdNumber}. ${syncMessage}`.trim(),
+      syncMessage.startsWith('HubSpot sync failed:') ? 'error' : 'success'
+    );
     await loadState();
   } catch (error) {
     setNotice(`PowerList creation failed: ${error.message}`, 'error');
@@ -1144,15 +1171,7 @@ elements.syncHubSpotButton.addEventListener('click', async () => {
     const result = await api(`/api/campaigns/${campaign.id}/sync-hubspot`, { method: 'POST' });
     const count = result.count || 0;
     const resetCount = result.providerErrorsReset || 0;
-    setNotice(
-      [
-        count
-          ? `Synced ${count} HubSpot contact(s) for this owner.`
-          : 'Synced HubSpot, but found 0 contacts for this owner. Check that contacts have this HubSpot owner.',
-        resetCount ? `Cleared ${resetCount} old provider error lead(s).` : ''
-      ].filter(Boolean).join(' '),
-      count || resetCount ? 'success' : 'info'
-    );
+    setNotice(hubspotSyncMessage(result), count || resetCount ? 'success' : 'info');
     await loadState();
   } catch (error) {
     setNotice(`HubSpot sync failed: ${error.message}`, 'error');

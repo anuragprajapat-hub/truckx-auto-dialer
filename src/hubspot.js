@@ -4,11 +4,19 @@ import { displayTimeZone, normalizeTimeZone } from './timeZones.js';
 const HUBSPOT_RETRY_STATUSES = new Set([429, 500, 502, 503, 504]);
 const HUBSPOT_MAX_RETRIES = 4;
 const STATUS_OPTION_CACHE_MS = 1000 * 60 * 10;
+const CONTACT_PROPERTY_CACHE_MS = 1000 * 60 * 10;
 const CONTACT_PAGE_SIZE = 200;
 
 let leadStatusOptionsCache = {
   expiresAt: 0,
   options: null
+};
+
+let contactSearchPropertiesCache = {
+  expiresAt: 0,
+  key: '',
+  properties: null,
+  omittedProperties: []
 };
 
 function hasHubSpotToken() {
@@ -153,59 +161,200 @@ function isMissingPropertyError(error) {
   );
 }
 
-export async function fetchContactsForOwner(owner, limit = 0) {
+function uniqueProperties(properties) {
+  return properties.filter((property, index, values) => (
+    property && values.indexOf(property) === index
+  ));
+}
+
+function contactSearchPropertySets() {
   const field = config.hubspot.properties;
+  const required = uniqueProperties([
+    'firstname',
+    'lastname',
+    'email',
+    'phone',
+    'mobilephone',
+    'company',
+    'hubspot_owner_id',
+    'lifecyclestage'
+  ]);
+  const optional = uniqueProperties([
+    field.leadStatus,
+    field.consent,
+    field.doNotCall,
+    field.attempts,
+    field.lastOutcome,
+    field.timeZone,
+    'timezone'
+  ]).filter((property) => !required.includes(property));
+  return {
+    required,
+    optional,
+    key: [...required, ...optional].join('|')
+  };
+}
+
+function contactSearchBody(owner, properties, limit, after = '') {
+  const body = {
+    filterGroups: [
+      {
+        filters: [
+          {
+            propertyName: 'hubspot_owner_id',
+            operator: 'EQ',
+            value: owner.hubspotOwnerId
+          }
+        ]
+      }
+    ],
+    properties,
+    limit
+  };
+  if (after) body.after = after;
+  return body;
+}
+
+async function fetchContactSearchPage(owner, properties, limit, after = '') {
+  return hubspotFetch('/crm/v3/objects/contacts/search', {
+    method: 'POST',
+    body: JSON.stringify(contactSearchBody(owner, properties, limit, after))
+  });
+}
+
+async function supportedOptionalContactProperties(owner, required, optional) {
+  const supported = [];
+  const omitted = [];
+
+  async function classify(properties) {
+    if (!properties.length) return;
+    try {
+      await fetchContactSearchPage(owner, [...required, ...properties], 1);
+      supported.push(...properties);
+    } catch (error) {
+      if (error.status !== 400) throw error;
+      if (properties.length === 1) {
+        omitted.push(properties[0]);
+        return;
+      }
+      const middle = Math.ceil(properties.length / 2);
+      await classify(properties.slice(0, middle));
+      await classify(properties.slice(middle));
+    }
+  }
+
+  await classify(optional);
+  return {
+    supported: optional.filter((property) => supported.includes(property)),
+    omitted: optional.filter((property) => omitted.includes(property))
+  };
+}
+
+async function resolveContactSearchProperties(owner, firstPageLimit) {
+  const propertySets = contactSearchPropertySets();
+  if (
+    contactSearchPropertiesCache.properties
+    && contactSearchPropertiesCache.key === propertySets.key
+    && contactSearchPropertiesCache.expiresAt > Date.now()
+  ) {
+    try {
+      const firstPage = await fetchContactSearchPage(
+        owner,
+        contactSearchPropertiesCache.properties,
+        firstPageLimit
+      );
+      return {
+        properties: contactSearchPropertiesCache.properties,
+        omittedProperties: contactSearchPropertiesCache.omittedProperties,
+        firstPage
+      };
+    } catch (error) {
+      if (error.status !== 400) throw error;
+      contactSearchPropertiesCache = {
+        expiresAt: 0,
+        key: '',
+        properties: null,
+        omittedProperties: []
+      };
+    }
+  }
+
+  const allProperties = [...propertySets.required, ...propertySets.optional];
+  try {
+    const firstPage = await fetchContactSearchPage(owner, allProperties, firstPageLimit);
+    contactSearchPropertiesCache = {
+      expiresAt: Date.now() + CONTACT_PROPERTY_CACHE_MS,
+      key: propertySets.key,
+      properties: allProperties,
+      omittedProperties: []
+    };
+    return { properties: allProperties, omittedProperties: [], firstPage };
+  } catch (error) {
+    if (error.status !== 400 || !propertySets.optional.length) throw error;
+  }
+
+  const requiredFirstPage = await fetchContactSearchPage(
+    owner,
+    propertySets.required,
+    firstPageLimit
+  );
+  const resolution = await supportedOptionalContactProperties(
+    owner,
+    propertySets.required,
+    propertySets.optional
+  );
+  const properties = [...propertySets.required, ...resolution.supported];
+  const firstPage = resolution.supported.length
+    ? await fetchContactSearchPage(owner, properties, firstPageLimit)
+    : requiredFirstPage;
+
+  contactSearchPropertiesCache = {
+    expiresAt: Date.now() + CONTACT_PROPERTY_CACHE_MS,
+    key: propertySets.key,
+    properties,
+    omittedProperties: resolution.omitted
+  };
+  return {
+    properties,
+    omittedProperties: resolution.omitted,
+    firstPage
+  };
+}
+
+export async function fetchContactsForOwner(owner, limit = 0) {
   const contacts = [];
   const maximum = Number(limit) > 0 ? Math.floor(Number(limit)) : Number.POSITIVE_INFINITY;
+  const firstPageLimit = Math.min(
+    CONTACT_PAGE_SIZE,
+    Math.max(1, Number.isFinite(maximum) ? maximum : CONTACT_PAGE_SIZE)
+  );
+  const propertyResolution = await resolveContactSearchProperties(owner, firstPageLimit);
+  const properties = propertyResolution.properties;
   let after = '';
+  let firstPage = propertyResolution.firstPage;
 
   do {
     const remaining = Number.isFinite(maximum) ? maximum - contacts.length : CONTACT_PAGE_SIZE;
-    const body = {
-      filterGroups: [
-        {
-          filters: [
-            {
-              propertyName: 'hubspot_owner_id',
-              operator: 'EQ',
-              value: owner.hubspotOwnerId
-            }
-          ]
-        }
-      ],
-      properties: [
-        'firstname',
-        'lastname',
-        'email',
-        'phone',
-        'mobilephone',
-        'company',
-        'hubspot_owner_id',
-        field.leadStatus,
-        'lifecyclestage',
-        field.consent,
-        field.doNotCall,
-        field.attempts,
-        field.lastOutcome,
-        field.timeZone,
-        'timezone'
-      ].filter((property, index, properties) => property && properties.indexOf(property) === index),
-      limit: Math.min(CONTACT_PAGE_SIZE, Math.max(1, remaining))
-    };
-
-    if (after) body.after = after;
-
-    const result = await hubspotFetch('/crm/v3/objects/contacts/search', {
-      method: 'POST',
-      body: JSON.stringify(body)
-    });
+    const pageLimit = Math.min(CONTACT_PAGE_SIZE, Math.max(1, remaining));
+    const result = firstPage || await fetchContactSearchPage(
+      owner,
+      properties,
+      pageLimit,
+      after
+    );
+    firstPage = null;
 
     contacts.push(...(result.results || []));
     after = result.paging?.next?.after || '';
     if (after) await sleep(250);
   } while (after && contacts.length < maximum);
 
-  return contacts.slice(0, maximum).map((contact) => mapContact(contact, owner));
+  const mapped = contacts.slice(0, maximum).map((contact) => mapContact(contact, owner));
+  Object.defineProperty(mapped, 'omittedProperties', {
+    value: propertyResolution.omittedProperties,
+    enumerable: false
+  });
+  return mapped;
 }
 
 export async function fetchHubSpotLeadStatusOptions(options = {}) {

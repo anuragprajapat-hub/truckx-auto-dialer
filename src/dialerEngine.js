@@ -243,8 +243,17 @@ export class DialerEngine {
     const leads = await fetchContactsForOwner(owner);
     const count = upsertLeads(leads);
     const reset = resetProviderErrorsForCampaign(campaignId);
-    addEvent('hubspot_sync', `Synced ${count} HubSpot contacts`, { campaignId, providerErrorsReset: reset.reset });
-    return { count, providerErrorsReset: reset.reset };
+    const omittedProperties = leads.omittedProperties || [];
+    addEvent('hubspot_sync', `Synced ${count} HubSpot contacts`, {
+      campaignId,
+      providerErrorsReset: reset.reset,
+      omittedProperties
+    });
+    return {
+      count,
+      providerErrorsReset: reset.reset,
+      omittedProperties
+    };
   }
 
   async syncHubSpotOwners() {
