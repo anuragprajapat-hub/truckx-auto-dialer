@@ -267,6 +267,53 @@ export class DialerEngine {
     return { count };
   }
 
+  async syncEmptyHubSpotCampaigns() {
+    if (config.leadSource !== 'hubspot') {
+      return { skipped: true, reason: 'LEAD_SOURCE is not hubspot', results: [] };
+    }
+
+    const data = getStore();
+    const ownerIdsWithLeads = new Set(data.leads.map((lead) => lead.ownerId));
+    const campaignsByOwner = new Map();
+    for (const campaign of data.campaigns) {
+      if (
+        campaign.status === 'deleted'
+        || campaign.deletedAt
+        || ownerIdsWithLeads.has(campaign.ownerId)
+        || campaignsByOwner.has(campaign.ownerId)
+      ) {
+        continue;
+      }
+      campaignsByOwner.set(campaign.ownerId, campaign);
+    }
+
+    const results = [];
+    for (const campaign of campaignsByOwner.values()) {
+      try {
+        const result = await this.syncHubSpotLeadsForCampaign(campaign.id);
+        results.push({
+          campaignId: campaign.id,
+          ownerId: campaign.ownerId,
+          count: result.count,
+          omittedProperties: result.omittedProperties || []
+        });
+      } catch (error) {
+        addEvent('hubspot_auto_sync_failed', error.message, {
+          campaignId: campaign.id,
+          ownerId: campaign.ownerId
+        });
+        results.push({
+          campaignId: campaign.id,
+          ownerId: campaign.ownerId,
+          count: 0,
+          error: error.message
+        });
+      }
+    }
+
+    return { results };
+  }
+
   async tick() {
     if (this.isTicking) return;
     this.isTicking = true;

@@ -582,6 +582,7 @@ async function handleApi(request, response, url) {
       automaticEndpointProvisioningReady: endpointReadiness.ready,
       defaultLeadStatusQueue: config.compliance.callableStatuses.length ? 'allowlist' : 'all_safe_statuses',
       hubspotContactSync: 'all_owner_contacts_with_optional_property_fallback',
+      hubspotEmptyCampaignAutoSync: true,
       connectedCallDtmf: typeof dialerEngine.voiceProvider.sendDigits === 'function',
       leadSource: config.leadSource,
       storage: storeBackend(),
@@ -1323,6 +1324,11 @@ const server = http.createServer(async (request, response) => {
 
 await initStore();
 dialerEngine.start();
+setTimeout(() => {
+  dialerEngine.syncEmptyHubSpotCampaigns().catch((error) => {
+    addEvent('hubspot_auto_sync_failed', error.message, { source: 'startup' });
+  });
+}, 1000);
 
 async function shutdown() {
   await closeStore();

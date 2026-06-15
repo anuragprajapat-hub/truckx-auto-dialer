@@ -141,6 +141,33 @@ test('HubSpot contact sync skips unavailable optional properties instead of losi
   }
 });
 
+test('startup HubSpot recovery imports leads for existing empty PowerLists once per owner', async () => {
+  store.updateStore((data) => {
+    data.owners.push({
+      id: 'owner-auto-sync',
+      hubspotOwnerId: '44',
+      name: 'Auto Sync Owner',
+      email: 'auto-sync@example.com',
+      agentPhone: '+16505550144'
+    });
+  });
+  const campaign = store.createCampaign({
+    ownerId: 'owner-auto-sync',
+    name: 'Existing empty PowerList',
+    maxParallelCalls: 1
+  });
+
+  const engine = new DialerEngine();
+  const result = await engine.syncEmptyHubSpotCampaigns();
+  const recovered = result.results.find((item) => item.campaignId === campaign.id);
+
+  assert.equal(recovered.count, 1250);
+  assert.equal(
+    store.getStore().leads.filter((lead) => lead.ownerId === 'owner-auto-sync').length,
+    1250
+  );
+});
+
 test('missing optional HubSpot properties do not turn a successful status update into an error', async () => {
   const result = await hubspot.updateHubSpotLead(
     { hubspotId: '123' },
