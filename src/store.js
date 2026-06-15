@@ -23,7 +23,10 @@ function enabled(value) {
 }
 
 export function persistentStorageRequired() {
-  return enabled(process.env.REQUIRE_PERSISTENT_STORAGE);
+  if (String(process.env.REQUIRE_PERSISTENT_STORAGE || '').trim()) {
+    return enabled(process.env.REQUIRE_PERSISTENT_STORAGE);
+  }
+  return enabled(process.env.RENDER) || Boolean(process.env.RENDER_SERVICE_ID);
 }
 
 function seedStore() {
